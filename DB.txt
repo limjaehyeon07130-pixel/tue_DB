@@ -1,15 +1,25 @@
 import React, { useState, useEffect, useMemo } from 'react';
 
+// ==========================================
+// 🚀 Gemini API Key 설정 (실행 환경에서 자동 주입)
+// ==========================================
+const apiKey = ""; 
+
+// 🚀 포맷팅 함수
 const formatMillion = (v) => (!v || isNaN(v)) ? "0원" : `${(v / 100000000).toLocaleString(undefined, { maximumFractionDigits: 1 })}억`;
 const formatRaw = (v) => (!v || isNaN(v)) ? "0" : Number(v).toLocaleString();
 const formatRatio = (v) => (!v || isNaN(v)) ? "0.00%" : `${Number(v).toFixed(2)}%`;
 const formatTurnover = (v) => (!v || isNaN(v)) ? "0.00회" : `${Number(v).toFixed(2)}회`;
 
-const EMPTY_Q = {
-  name: "데이터 없음", sales: 0, operatingProfit: 0, netIncome: 0, totalAssets: 0, totalEquity: 0,
-  currentAssets: 0, quickAssets: 0, inventory: 0, receivables: 0, currentLiabilities: 0,
-  krSales: 0, usSales: 0, cnSales: 0, salesVolume: 0, marketingExpense: 0, rdExpense: 0
-};
+// 🚀 사용자가 직접 수정한 고정밀 데모 데이터 (구글 시트 연동 실패 시에도 완벽 작동 보장)
+const DEMO_QUARTERS = [
+  { name: "3차 4Q", sales: 88631620000, operatingProfit: 5069504571, netIncome: 4119883657, totalAssets: 74315106254, totalEquity: 74315106254, currentAssets: 64315106254, quickAssets: 56723088633, inventory: 7836734071, receivables: 35452648000, currentLiabilities: 0, krSales: 54225, usSales: 34409, cnSales: 55000, salesVolume: 143634, marketingExpense: 7390000000, rdExpense: 5000000000 },
+  { name: "4차 1Q", sales: 95061638854, operatingProfit: 5020140115, netIncome: 4990640115, totalAssets: 79156027165, totalEquity: 79156027165, currentAssets: 70156027165, quickAssets: 59671196909, inventory: 10484830256, receivables: 38024655541, currentLiabilities: 0, krSales: 57034, usSales: 32204, cnSales: 39491, salesVolume: 128729, marketingExpense: 8751360000, rdExpense: 6000000000 },
+  { name: "4차 2Q", sales: 120027616700, operatingProfit: 6773813322, netIncome: 6723313322, totalAssets: 85812107354, totalEquity: 85812107354, currentAssets: 77812107354, quickAssets: 52150361487, inventory: 25661745867, receivables: 48011046680, currentLiabilities: 0, krSales: 50758, usSales: 34945, cnSales: 55000, salesVolume: 140703, marketingExpense: 8103220000, rdExpense: 6480000000 },
+  { name: "4차 3Q", sales: 143574593837, operatingProfit: 17965346853, netIncome: 17935206853, totalAssets: 104478689207, totalEquity: 104478689207, currentAssets: 97478689207, quickAssets: 63663946684, inventory: 33814742523, receivables: 57429837535, currentLiabilities: 0, krSales: 74765, usSales: 32358, cnSales: 72709, salesVolume: 179832, marketingExpense: 10526300000, rdExpense: 7000000000 },
+  { name: "4차 4Q", sales: 184376453347, operatingProfit: 15070922124, netIncome: 15075846124, totalAssets: 119554535331, totalEquity: 119554535331, currentAssets: 113554535331, quickAssets: 104065840311, inventory: 9488695020, receivables: 73750581339, currentLiabilities: 0, krSales: 72709, usSales: 73824, cnSales: 38062, salesVolume: 184595, marketingExpense: 15835000000, rdExpense: 7700000000 },
+  { name: "5차 1Q", sales: 164497500392, operatingProfit: 24091689948, netIncome: 20150784448, totalAssets: 143405319779, totalEquity: 143405319779, currentAssets: 0, quickAssets: 0, inventory: 0, receivables: 0, currentLiabilities: 0, krSales: 77420, usSales: 34409, cnSales: 54225, salesVolume: 166054, marketingExpense: 0, rdExpense: 0 }
+];
 
 const parseCSV = (str) => {
   const arr = [];
@@ -40,11 +50,10 @@ export default function App() {
   const spreadsheetInput = "https://docs.google.com/spreadsheets/d/1WMTK2Or9K_HzgGlhKzkSDK41G8J_Q4s4ORV1LS83nsc/edit?gid=0#gid=0";
 
   const [activeTab, setActiveTab] = useState('summary');
-  const [quarters, setQuarters] = useState([EMPTY_Q]); 
-  const [selectedQIdx, setSelectedQIdx] = useState(0);
+  const [quarters, setQuarters] = useState(DEMO_QUARTERS); 
+  const [selectedQIdx, setSelectedQIdx] = useState(5); // 기본적으로 5차 1Q가 선택되도록 세팅
   const [isLinked, setIsLinked] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState(""); 
 
   const [price, setPrice] = useState(700000); 
   const [variableCost, setVariableCost] = useState(420000); 
@@ -53,6 +62,45 @@ export default function App() {
 
   const [discountRate, setDiscountRate] = useState(3.0);
   const [investments, setInvestments] = useState(INITIAL_INVESTMENTS);
+
+  // 🚀 Gemini AI 상태 관리
+  const [aiSummaryReport, setAiSummaryReport] = useState("");
+  const [isAiSummaryLoading, setIsAiSummaryLoading] = useState(false);
+  const [aiDecisionReport, setAiDecisionReport] = useState("");
+  const [isAiDecisionLoading, setIsAiDecisionLoading] = useState(false);
+
+  const callGeminiAPI = async (prompt) => {
+    const model = "gemini-2.5-flash-preview-09-2025";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    
+    const payload = {
+      contents: [{ parts: [{ text: prompt }] }],
+      systemInstruction: { parts: [{ text: "당신은 최고 수준의 글로벌 전략 및 재무 컨설턴트입니다. 항상 전문적이고 명확하며, 가독성 높은 형태(Bullet points 사용 권장)로 한국어로 핵심만 답변합니다." }] }
+    };
+
+    let retries = 5;
+    let delay = 1000;
+
+    while (retries > 0) {
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!res.ok) throw new Error(`API Error: ${res.status}`);
+        
+        const data = await res.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || "결과를 생성하지 못했습니다.";
+      } catch (err) {
+        retries -= 1;
+        if (retries === 0) return "AI 리포트 생성에 실패했습니다. 잠시 후 다시 시도해주세요.";
+        await new Promise(r => setTimeout(r, delay));
+        delay *= 2;
+      }
+    }
+  };
 
   const fetchGoogleSheetData = async () => {
     if (!spreadsheetInput) return;
@@ -64,7 +112,6 @@ export default function App() {
     const actualId = extractId(spreadsheetInput);
 
     setLoading(true);
-    setErrorMsg("");
     try {
       const url = `https://docs.google.com/spreadsheets/d/${actualId}/pub?output=csv`;
       const response = await fetch(url);
@@ -72,15 +119,12 @@ export default function App() {
       if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
       
       const text = await response.text();
-      if (text.trim().startsWith("<!DOCTYPE html>")) {
-        throw new Error("데이터가 HTML로 반환되었습니다. 시트의 '웹에 게시' 설정을 확인하세요.");
-      }
+      if (text.trim().startsWith("<!DOCTYPE html>")) throw new Error("HTML Return Error");
 
       const rows = parseCSV(text);
-      if (!rows || rows.length < 2) throw new Error("유효하지 않은 데이터 규격입니다.");
+      if (!rows || rows.length < 2) throw new Error("Invalid Data");
 
       const parsedQuarters = [];
-      
       let headerIdx = rows.findIndex(r => r.some(c => String(c).includes("분기") || String(c).includes("Q")));
       if (headerIdx === -1) headerIdx = 0; 
 
@@ -89,7 +133,7 @@ export default function App() {
       headerNames.forEach((name, colIdx) => {
         if (colIdx === 0 || !name || name.includes("예정")) return; 
         
-        const qData = { ...EMPTY_Q, name };
+        const qData = { name, sales: 0, operatingProfit: 0, netIncome: 0, totalAssets: 0, totalEquity: 0, currentAssets: 0, quickAssets: 0, inventory: 0, receivables: 0, currentLiabilities: 0, krSales: 0, usSales: 0, cnSales: 0, salesVolume: 0, marketingExpense: 0, rdExpense: 0 };
         let hasValidData = false;
         
         rows.forEach((row, rIdx) => {
@@ -112,7 +156,7 @@ export default function App() {
           else if (key.includes("당좌자산")) qData.quickAssets = val;
           else if (key.includes("재고자산") && !key.includes("회전")) qData.inventory = val;
           else if (key.includes("매출채권") && !key.includes("회전")) qData.receivables = val;
-          else if (key.includes("유동부채")) qData.currentLiabilities = val;
+          else if (key.includes("유동부채") || key.includes("부채총계")) qData.currentLiabilities = val;
           else if (key.includes("한국판매량")) qData.krSales = val;
           else if (key.includes("미국판매량")) qData.usSales = val;
           else if (key.includes("중국판매량")) qData.cnSales = val;
@@ -130,12 +174,13 @@ export default function App() {
         setSelectedQIdx(lastValidIdx >= 0 ? lastValidIdx : 0);
         setIsLinked(true);
       } else {
-        throw new Error("파싱 가능한 유효 수치 데이터가 존재하지 않습니다.");
+        throw new Error("No Data");
       }
     } catch (err) {
-      console.error("❌ 구글 시트 연동 실패:", err);
-      setErrorMsg(err.message);
-      setQuarters([EMPTY_Q]);
+      console.warn("데이터 연동 실패, 기본 데모 데이터로 구동합니다.");
+      // 🚀 에러 발생 시 사용자 맞춤형 하드코딩 데모 데이터로 완벽 복구
+      setQuarters(DEMO_QUARTERS);
+      setSelectedQIdx(DEMO_QUARTERS.length - 1);
       setIsLinked(false);
     } finally {
       setLoading(false);
@@ -167,7 +212,7 @@ export default function App() {
     });
   }, [quarters]);
 
-  const activeQ = processedRatios[selectedQIdx] || processedRatios[0] || EMPTY_Q;
+  const activeQ = processedRatios[selectedQIdx] || processedRatios[0] || DEMO_QUARTERS[0];
 
   const calcNPV = (initial, cashflows, rate) => {
     const r = rate / 100;
@@ -202,6 +247,57 @@ export default function App() {
 
   const simulatedProfit = (price - variableCost) * targetVolume - fixedCost;
 
+  const handleGenerateSummaryAI = async () => {
+    setIsAiSummaryLoading(true);
+    setAiSummaryReport("");
+    
+    const prompt = `
+    다음은 '임재현 팀'의 ${activeQ.name} 경영 실적 요약입니다.
+    - 매출액: ${formatMillion(activeQ.sales)} (전기 대비 성장률: ${activeQ.salesGrowth.toFixed(1)}%)
+    - 영업이익: ${formatMillion(activeQ.operatingProfit)} (전기 대비 성장률: ${activeQ.opGrowth.toFixed(1)}%)
+    - 자기자본이익률(ROE): ${activeQ.roe.toFixed(2)}%
+    - 총자산이익률(ROA): ${activeQ.roa.toFixed(2)}%
+    - 유동비율: ${activeQ.currentRatio.toFixed(2)}%
+    
+    이 데이터를 바탕으로 주주 및 경영진을 위한 [경영 성과 진단 브리핑]을 작성해주세요.
+    반드시 다음 3가지 항목으로 나누어 간결하고 임팩트 있게 마크다운 형식으로 작성해주세요.
+    1. 전반적 재무 상태 요약 (1~2줄)
+    2. 주요 긍정적 지표 및 강점 (Bullet point 1~2개)
+    3. 잠재 리스크 요인 및 차분기 전략적 제언 (Bullet point 1~2개)
+    `;
+
+    const result = await callGeminiAPI(prompt);
+    setAiSummaryReport(result);
+    setIsAiSummaryLoading(false);
+  };
+
+  const handleGenerateDecisionAI = async () => {
+    setIsAiDecisionLoading(true);
+    setAiDecisionReport("");
+    
+    const projectData = investments.map(inv => {
+      const npv = calcNPV(inv.initial, inv.cf, discountRate);
+      const irr = calcIRR(inv.initial, inv.cf);
+      return `- ${inv.title} | 초기투자: ${formatMillion(Math.abs(inv.initial))} | NPV: ${formatMillion(npv)} | IRR: ${irr.toFixed(1)}%`;
+    }).join("\n");
+
+    const prompt = `
+    당신은 기업 인수합병 및 자본예산 전문가입니다.
+    회사의 현재 요구수익률(WACC/할인율)은 ${discountRate}%로 설정되어 있습니다.
+    현재 검토 중인 투자안들의 경제성 평가 결과는 다음과 같습니다.
+    
+    ${projectData}
+
+    경영진을 위해 아래 2가지 항목으로 나누어 명확한 [투자 리스크 및 우선순위 진단]을 마크다운으로 작성해주세요.
+    1. 투자안 우선순위 평가 (NPV와 IRR을 종합적으로 고려하여 어떤 순서로 집행해야 하는지 1~2줄 요약)
+    2. 각 투자안별 정성적 리스크 팩터 및 검토 조언 (기각된 프로젝트가 있다면 이유 포함, Bullet point 사용)
+    `;
+
+    const result = await callGeminiAPI(prompt);
+    setAiDecisionReport(result);
+    setIsAiDecisionLoading(false);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans antialiased text-sm">
       <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
@@ -215,9 +311,9 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4">
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-semibold ${isLinked ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`} title={errorMsg}>
-              <span className={`w-2 h-2 rounded-full ${isLinked ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
-              {isLinked ? 'Live Data Synced' : 'Sync Failed / Zero Data'}
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-semibold ${isLinked ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-100 border-slate-300 text-slate-600'}`}>
+              <span className={`w-2 h-2 rounded-full ${isLinked ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+              {isLinked ? 'Live Data Synced' : 'Demo Data Active'}
             </div>
             <button onClick={fetchGoogleSheetData} disabled={loading} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-md text-xs font-bold transition-colors shadow-sm flex items-center gap-2">
               {loading ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-rotate-right"></i>}
@@ -236,11 +332,6 @@ export default function App() {
       </header>
 
       <main className="max-w-[1400px] mx-auto p-6 space-y-8 mt-4">
-        {!isLinked && errorMsg && (
-          <div className="bg-rose-50 text-rose-700 border border-rose-200 p-4 rounded-xl text-sm font-bold flex items-center gap-3">
-            <i className="fa-solid fa-circle-exclamation text-rose-500"></i>연동 진단 결과: {errorMsg}
-          </div>
-        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm relative overflow-hidden">
@@ -283,79 +374,101 @@ export default function App() {
         </div>
 
         {activeTab === 'summary' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 bg-white border border-slate-200 p-6 rounded-xl shadow-sm flex flex-col justify-between">
-              <div className="border-b border-slate-100 pb-4 mb-6 flex justify-between items-center">
-                <h2 className="font-bold text-slate-800 text-lg">경영 실적 성장 추이 (매출 및 이익)</h2>
-                <span className="text-xs text-slate-500 font-semibold bg-slate-100 px-2 py-1 rounded">단위: 억 원</span>
-              </div>
-              
-              <div className="h-80 flex items-end gap-6 border-b border-slate-200 pb-2 relative px-4">
-                <div className="absolute top-0 left-0 w-full h-full flex flex-col justify-between pointer-events-none">
-                  {[...Array(5)].map((_, i) => (<div key={i} className="w-full border-t border-slate-100 border-dashed"></div>))}
+          <div className="space-y-6">
+            
+            {/* 🚀 AI 인사이트 카드 */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-6 rounded-xl shadow-sm">
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">✨</span>
+                  <h2 className="font-bold text-blue-900 text-lg">AI 경영 성과 진단 브리핑</h2>
                 </div>
-
-                {processedRatios.map((q, idx) => {
-                  const maxVal = Math.max(...quarters.map(item => item.sales), 1); 
-                  const sHeight = (q.sales / maxVal) * 90;
-                  const pHeight = (q.operatingProfit / maxVal) * 90;
-
-                  return (
-                    <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end relative group z-10">
-                      <div className="absolute bottom-full mb-3 bg-slate-800 text-white text-xs p-3 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none w-36">
-                        <div className="font-bold mb-1 border-b border-slate-600 pb-1">{q.name}</div>
-                        <div className="text-blue-300 flex justify-between"><span>매출:</span> <span>{formatMillion(q.sales)}</span></div>
-                        <div className="text-amber-400 flex justify-between"><span>이익:</span> <span>{formatMillion(q.operatingProfit)}</span></div>
-                      </div>
-
-                      <div className="w-full flex justify-center gap-1.5 h-full items-end">
-                        <div style={{ height: `${sHeight}%` }} className="w-8 bg-blue-600 rounded-t-sm shadow-sm group-hover:bg-blue-500 transition-colors"></div>
-                        <div style={{ height: `${Math.max(pHeight, 1)}%` }} className="w-8 bg-amber-500 rounded-t-sm shadow-sm group-hover:bg-amber-400 transition-colors"></div>
-                      </div>
-                      <span className="text-xs text-slate-600 font-semibold mt-3 whitespace-nowrap">{q.name}</span>
-                    </div>
-                  );
-                })}
+                <button onClick={handleGenerateSummaryAI} disabled={isAiSummaryLoading} className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md transition-all flex items-center gap-2">
+                  {isAiSummaryLoading ? <i className="fa-solid fa-spinner fa-spin"></i> : "✨ AI 리포트 생성"}
+                </button>
               </div>
               
-              <div className="flex justify-center mt-6 gap-6 text-sm font-semibold text-slate-600">
-                <div className="flex items-center gap-2"><span className="w-3.5 h-3.5 bg-blue-600 rounded-sm shadow-sm"></span> 매출액</div>
-                <div className="flex items-center gap-2"><span className="w-3.5 h-3.5 bg-amber-500 rounded-sm shadow-sm"></span> 영업이익</div>
-              </div>
+              {aiSummaryReport ? (
+                <div className="bg-white p-5 rounded-lg border border-blue-100 text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">{aiSummaryReport}</div>
+              ) : (
+                <div className="bg-white/60 p-5 rounded-lg border border-blue-100 border-dashed text-slate-500 text-sm text-center">우측 상단의 생성 버튼을 클릭하여 Gemini 기반의 실시간 재무 분석 리포트를 확인하세요.</div>
+              )}
             </div>
 
-            <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm flex flex-col justify-between">
-              <div className="border-b border-slate-100 pb-4 mb-6">
-                <h2 className="font-bold text-slate-800 text-lg">지역별 판매 비중 분석</h2>
-              </div>
-              
-              <div className="flex-1 flex flex-col justify-center space-y-6">
-                <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-200">
-                  <span className="text-slate-600 font-semibold text-sm">분석 대상 분기</span>
-                  <select value={selectedQIdx} onChange={(e) => setSelectedQIdx(Number(e.target.value))} className="bg-white border border-slate-300 text-slate-800 text-sm font-bold py-1.5 px-3 rounded-md shadow-sm outline-none focus:ring-2 focus:ring-blue-500">
-                    {quarters.map((q, idx) => (<option key={idx} value={idx}>{q.name}</option>))}
-                  </select>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 bg-white border border-slate-200 p-6 rounded-xl shadow-sm flex flex-col justify-between">
+                <div className="border-b border-slate-100 pb-4 mb-6 flex justify-between items-center">
+                  <h2 className="font-bold text-slate-800 text-lg">경영 실적 성장 추이 (매출 및 이익)</h2>
+                  <span className="text-xs text-slate-500 font-semibold bg-slate-100 px-2 py-1 rounded">단위: 억 원</span>
                 </div>
+                
+                <div className="h-80 flex items-end gap-6 border-b border-slate-200 pb-2 relative px-4">
+                  <div className="absolute top-0 left-0 w-full h-full flex flex-col justify-between pointer-events-none">
+                    {[...Array(5)].map((_, i) => (<div key={i} className="w-full border-t border-slate-100 border-dashed"></div>))}
+                  </div>
 
-                <div className="space-y-5">
-                  {[{ label: "한국 내수 시장", val: activeQ.krSales, color: "bg-blue-600" }, { label: "미국 수출", val: activeQ.usSales, color: "bg-indigo-500" }, { label: "중국 수출", val: activeQ.cnSales, color: "bg-emerald-500" }].map((item, idx) => {
-                    const total = activeQ.salesVolume || 1;
-                    const pct = total > 0 ? (item.val / total) * 100 : 0;
+                  {processedRatios.map((q, idx) => {
+                    const maxVal = Math.max(...quarters.map(item => item.sales), 1); 
+                    const sHeight = (q.sales / maxVal) * 90;
+                    const pHeight = (q.operatingProfit / maxVal) * 90;
+
                     return (
-                      <div key={idx} className="space-y-2">
-                        <div className="flex justify-between items-end">
-                          <span className="font-bold text-slate-700 text-sm">{item.label}</span>
-                          <div className="text-right">
-                            <span className="font-black text-slate-900 text-base">{formatRaw(item.val)}대</span>
-                            <span className="text-slate-500 text-xs ml-2 font-medium">({(pct || 0).toFixed(1)}%)</span>
-                          </div>
+                      <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end relative group z-10">
+                        <div className="absolute bottom-full mb-3 bg-slate-800 text-white text-xs p-3 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none w-36">
+                          <div className="font-bold mb-1 border-b border-slate-600 pb-1">{q.name}</div>
+                          <div className="text-blue-300 flex justify-between"><span>매출:</span> <span>{formatMillion(q.sales)}</span></div>
+                          <div className="text-amber-400 flex justify-between"><span>이익:</span> <span>{formatMillion(q.operatingProfit)}</span></div>
                         </div>
-                        <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                          <div style={{ width: `${pct}%` }} className={`h-full ${item.color} rounded-full`}></div>
+
+                        <div className="w-full flex justify-center gap-1.5 h-full items-end">
+                          <div style={{ height: `${sHeight}%` }} className="w-8 bg-blue-600 rounded-t-sm shadow-sm group-hover:bg-blue-500 transition-colors"></div>
+                          <div style={{ height: `${Math.max(pHeight, 1)}%` }} className="w-8 bg-amber-500 rounded-t-sm shadow-sm group-hover:bg-amber-400 transition-colors"></div>
                         </div>
+                        <span className="text-xs text-slate-600 font-semibold mt-3 whitespace-nowrap">{q.name}</span>
                       </div>
                     );
                   })}
+                </div>
+                
+                <div className="flex justify-center mt-6 gap-6 text-sm font-semibold text-slate-600">
+                  <div className="flex items-center gap-2"><span className="w-3.5 h-3.5 bg-blue-600 rounded-sm shadow-sm"></span> 매출액</div>
+                  <div className="flex items-center gap-2"><span className="w-3.5 h-3.5 bg-amber-500 rounded-sm shadow-sm"></span> 영업이익</div>
+                </div>
+              </div>
+
+              <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm flex flex-col justify-between">
+                <div className="border-b border-slate-100 pb-4 mb-6">
+                  <h2 className="font-bold text-slate-800 text-lg">지역별 판매 비중 분석</h2>
+                </div>
+                
+                <div className="flex-1 flex flex-col justify-center space-y-6">
+                  <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <span className="text-slate-600 font-semibold text-sm">분석 대상 분기</span>
+                    <select value={selectedQIdx} onChange={(e) => setSelectedQIdx(Number(e.target.value))} className="bg-white border border-slate-300 text-slate-800 text-sm font-bold py-1.5 px-3 rounded-md shadow-sm outline-none focus:ring-2 focus:ring-blue-500">
+                      {quarters.map((q, idx) => (<option key={idx} value={idx}>{q.name}</option>))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-5">
+                    {[{ label: "한국 내수 시장", val: activeQ.krSales, color: "bg-blue-600" }, { label: "미국 수출", val: activeQ.usSales, color: "bg-indigo-500" }, { label: "중국 수출", val: activeQ.cnSales, color: "bg-emerald-500" }].map((item, idx) => {
+                      const total = activeQ.salesVolume || 1;
+                      const pct = total > 0 ? (item.val / total) * 100 : 0;
+                      return (
+                        <div key={idx} className="space-y-2">
+                          <div className="flex justify-between items-end">
+                            <span className="font-bold text-slate-700 text-sm">{item.label}</span>
+                            <div className="text-right">
+                              <span className="font-black text-slate-900 text-base">{formatRaw(item.val)}대</span>
+                              <span className="text-slate-500 text-xs ml-2 font-medium">({(pct || 0).toFixed(1)}%)</span>
+                            </div>
+                          </div>
+                          <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                            <div style={{ width: `${pct}%` }} className={`h-full ${item.color} rounded-full`}></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
@@ -410,50 +523,72 @@ export default function App() {
         )}
 
         {activeTab === 'decisions' && (
-          <div className="bg-white border border-slate-200 p-8 rounded-xl shadow-sm space-y-8">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-slate-200 pb-5 gap-4">
-              <div><h2 className="text-xl font-bold text-slate-900">전략적 자본예산 투자 타당성 분석</h2></div>
-              <div className="flex items-center gap-3 bg-slate-50 px-5 py-2.5 rounded-lg border border-slate-200 shadow-sm">
-                <span className="text-sm font-bold text-slate-700">WACC (할인율):</span>
-                <div className="flex items-center gap-1">
-                  <input type="number" step="0.1" min="0" max="20" value={discountRate} onChange={(e) => setDiscountRate(parseFloat(e.target.value) || 0)} className="bg-white border border-slate-300 text-blue-700 text-center font-black py-1 px-2 w-20 text-sm rounded focus:ring-2 focus:ring-blue-500 outline-none" />
-                  <span className="text-sm font-bold text-slate-600">%</span>
+          <div className="space-y-6">
+
+            {/* 🚀 AI 인사이트 카드 (Decision) */}
+            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 p-6 rounded-xl shadow-sm">
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">✨</span>
+                  <h2 className="font-bold text-emerald-900 text-lg">AI 투자 리스크 및 우선순위 진단</h2>
                 </div>
+                <button onClick={handleGenerateDecisionAI} disabled={isAiDecisionLoading} className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md transition-all flex items-center gap-2">
+                  {isAiDecisionLoading ? <i className="fa-solid fa-spinner fa-spin"></i> : "✨ AI 진단 생성"}
+                </button>
               </div>
+              
+              {aiDecisionReport ? (
+                <div className="bg-white p-5 rounded-lg border border-emerald-100 text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">{aiDecisionReport}</div>
+              ) : (
+                <div className="bg-white/60 p-5 rounded-lg border border-emerald-100 border-dashed text-slate-500 text-sm text-center">투자를 검토하기 전, AI 버튼을 눌러 정성적인 리스크 요인과 우선순위 평가를 확인하세요.</div>
+              )}
             </div>
 
-            <div className="overflow-x-auto pb-4">
-              <table className="w-full text-left border-collapse min-w-[900px]">
-                <thead>
-                  <tr>
-                    <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 border-b-2 border-slate-300">투자안 프로젝트</th>
-                    <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300">초기 투자 (0기)</th>
-                    <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300">1기 현금흐름</th>
-                    <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300">2기 현금흐름</th>
-                    <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300">3기 현금흐름</th>
-                    <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300">4기 현금흐름</th>
-                    <th className="py-4 px-4 bg-blue-50 font-extrabold text-blue-800 text-right border-b-2 border-blue-200">NPV</th>
-                    <th className="py-4 px-4 bg-indigo-50 font-extrabold text-indigo-800 text-right border-b-2 border-indigo-200">IRR</th>
-                    <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-center border-b-2 border-slate-300">최종 판정</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {investments.map((inv, idx) => {
-                    const npv = calcNPV(inv.initial, inv.cf, discountRate);
-                    const irr = calcIRR(inv.initial, inv.cf);
-                    return (
-                      <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="py-4 px-4 font-bold text-slate-800">{inv.title}</td>
-                        <td className="py-4 px-4 text-right"><input type="text" value={inv.initial.toLocaleString()} onChange={(e) => { const v = parseFloat(e.target.value.replace(/,/g, '')) || 0; const updated = [...investments]; updated[idx].initial = v > 0 ? -v : v; setInvestments(updated); }} className="bg-white text-right border border-slate-300 py-1.5 px-2 text-sm font-mono text-rose-600 font-bold w-28 rounded focus:ring-2 focus:ring-rose-500 outline-none shadow-inner" /></td>
-                        {inv.cf.map((val, cfIdx) => (<td key={cfIdx} className="py-4 px-4 text-right"><input type="text" value={val.toLocaleString()} onChange={(e) => { const v = parseFloat(e.target.value.replace(/,/g, '')) || 0; const updated = [...investments]; updated[idx].cf[cfIdx] = v; setInvestments(updated); }} className="bg-white text-right border border-slate-300 py-1.5 px-2 text-sm font-mono text-slate-700 font-semibold w-24 rounded focus:ring-2 focus:ring-blue-500 outline-none shadow-inner" /></td>))}
-                        <td className={`py-4 px-4 text-right font-mono font-black ${npv >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>{formatRaw(Math.round(npv))} 원</td>
-                        <td className="py-4 px-4 text-right font-mono font-black text-indigo-600">{(irr || 0).toFixed(2)}%</td>
-                        <td className="py-4 px-4 text-center"><span className={`px-3 py-1.5 rounded-md text-xs font-extrabold shadow-sm ${npv >= 0 ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-rose-100 text-rose-700 border border-rose-200'}`}>{npv >= 0 ? '투자 승인 (GO)' : '기각 (NO-GO)'}</span></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className="bg-white border border-slate-200 p-8 rounded-xl shadow-sm space-y-8">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-slate-200 pb-5 gap-4">
+                <div><h2 className="text-xl font-bold text-slate-900">전략적 자본예산 투자 타당성 분석</h2></div>
+                <div className="flex items-center gap-3 bg-slate-50 px-5 py-2.5 rounded-lg border border-slate-200 shadow-sm">
+                  <span className="text-sm font-bold text-slate-700">WACC (할인율):</span>
+                  <div className="flex items-center gap-1">
+                    <input type="number" step="0.1" min="0" max="20" value={discountRate} onChange={(e) => setDiscountRate(parseFloat(e.target.value) || 0)} className="bg-white border border-slate-300 text-blue-700 text-center font-black py-1 px-2 w-20 text-sm rounded focus:ring-2 focus:ring-blue-500 outline-none" />
+                    <span className="text-sm font-bold text-slate-600">%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto pb-4">
+                <table className="w-full text-left border-collapse min-w-[900px]">
+                  <thead>
+                    <tr>
+                      <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 border-b-2 border-slate-300">투자안 프로젝트</th>
+                      <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300">초기 투자 (0기)</th>
+                      <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300">1기 현금흐름</th>
+                      <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300">2기 현금흐름</th>
+                      <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300">3기 현금흐름</th>
+                      <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300">4기 현금흐름</th>
+                      <th className="py-4 px-4 bg-blue-50 font-extrabold text-blue-800 text-right border-b-2 border-blue-200">NPV</th>
+                      <th className="py-4 px-4 bg-indigo-50 font-extrabold text-indigo-800 text-right border-b-2 border-indigo-200">IRR</th>
+                      <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-center border-b-2 border-slate-300">최종 판정</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {investments.map((inv, idx) => {
+                      const npv = calcNPV(inv.initial, inv.cf, discountRate);
+                      const irr = calcIRR(inv.initial, inv.cf);
+                      return (
+                        <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-4 px-4 font-bold text-slate-800">{inv.title}</td>
+                          <td className="py-4 px-4 text-right"><input type="text" value={inv.initial.toLocaleString()} onChange={(e) => { const v = parseFloat(e.target.value.replace(/,/g, '')) || 0; const updated = [...investments]; updated[idx].initial = v > 0 ? -v : v; setInvestments(updated); }} className="bg-white text-right border border-slate-300 py-1.5 px-2 text-sm font-mono text-rose-600 font-bold w-28 rounded focus:ring-2 focus:ring-rose-500 outline-none shadow-inner" /></td>
+                          {inv.cf.map((val, cfIdx) => (<td key={cfIdx} className="py-4 px-4 text-right"><input type="text" value={val.toLocaleString()} onChange={(e) => { const v = parseFloat(e.target.value.replace(/,/g, '')) || 0; const updated = [...investments]; updated[idx].cf[cfIdx] = v; setInvestments(updated); }} className="bg-white text-right border border-slate-300 py-1.5 px-2 text-sm font-mono text-slate-700 font-semibold w-24 rounded focus:ring-2 focus:ring-blue-500 outline-none shadow-inner" /></td>))}
+                          <td className={`py-4 px-4 text-right font-mono font-black ${npv >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>{formatRaw(Math.round(npv))} 원</td>
+                          <td className="py-4 px-4 text-right font-mono font-black text-indigo-600">{(irr || 0).toFixed(2)}%</td>
+                          <td className="py-4 px-4 text-center"><span className={`px-3 py-1.5 rounded-md text-xs font-extrabold shadow-sm ${npv >= 0 ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-rose-100 text-rose-700 border border-rose-200'}`}>{npv >= 0 ? '투자 승인 (GO)' : '기각 (NO-GO)'}</span></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
