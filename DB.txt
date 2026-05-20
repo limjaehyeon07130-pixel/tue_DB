@@ -20,7 +20,7 @@ export default function App() {
   // ==========================================
   // 구글 스프레드시트 공유 ID (실시간 연동용)
   // ==========================================
-  const spreadsheetId = "1WMTK2Or9K_HzgGlhKzkSDK41G8J_Q4s4ORV1LS83nsc";
+  const spreadsheetId = 1WMTK2Or9K_HzgGlhKzkSDK41G8J_Q4s4ORV1LS83nsc;
 
   const [activeTab, setActiveTab] = useState('summary');
   const [quarters, setQuarters] = useState(DEMO_QUARTERS);
