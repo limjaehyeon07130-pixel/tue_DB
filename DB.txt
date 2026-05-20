@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 
-// 구글 시트 미연동 시 기본 렌더링을 위한 데모 데이터
-const DEMO_QUARTERS = [
-  { name: "3차 4Q", sales: 88631620000, operatingProfit: 5069504571, netIncome: 4119883657, totalAssets: 74315106254, totalEquity: 74315106254, currentAssets: 64315106254, quickAssets: 56723088633, inventory: 7836734071, receivables: 35452648000, totalDebt: 0, currentLiabilities: 10000000, krSales: 54225, usSales: 34409, cnSales: 55000, salesVolume: 143634, marketingExpense: 7390000000, rdExpense: 5000000000 },
-  { name: "4차 1Q", sales: 95061638854, operatingProfit: 5020140115, netIncome: 4990640115, totalAssets: 79156027165, totalEquity: 79156027165, currentAssets: 70156027165, quickAssets: 59671196909, inventory: 10484830256, receivables: 38024655541, totalDebt: 0, currentLiabilities: 10000000, krSales: 57034, usSales: 32204, cnSales: 39491, salesVolume: 128729, marketingExpense: 8751360000, rdExpense: 6000000000 },
-  { name: "4차 2Q", sales: 120027616700, operatingProfit: 6773813322, netIncome: 6723313322, totalAssets: 85812107354, totalEquity: 85812107354, currentAssets: 77812107354, quickAssets: 52150361487, inventory: 25661745867, receivables: 48011046680, totalDebt: 0, currentLiabilities: 10000000, krSales: 50758, usSales: 34945, cnSales: 55000, salesVolume: 140703, marketingExpense: 8103220000, rdExpense: 6480000000 },
-  { name: "4차 3Q", sales: 143574593837, operatingProfit: 17965346853, netIncome: 17935206853, totalAssets: 104478689207, totalEquity: 104478689207, currentAssets: 97478689207, quickAssets: 63663946684, inventory: 33814742523, receivables: 57429837535, totalDebt: 0, currentLiabilities: 10000000, krSales: 74765, usSales: 32358, cnSales: 72709, salesVolume: 179832, marketingExpense: 10526300000, rdExpense: 7000000000 },
-  { name: "4차 4Q", sales: 184376453347, operatingProfit: 15070922124, netIncome: 15075846124, totalAssets: 119554535331, totalEquity: 119554535331, currentAssets: 113554535331, quickAssets: 104065840311, inventory: 9488695020, receivables: 73750581339, totalDebt: 0, currentLiabilities: 10000000, krSales: 72709, usSales: 73824, cnSales: 38062, salesVolume: 184595, marketingExpense: 15835000000, rdExpense: 7700000000 },
-  { name: "5차 1Q", sales: 164497500392, operatingProfit: 24091689948, netIncome: 20150784448, totalAssets: 143405319779, totalEquity: 143405319779, currentAssets: 114000000000, quickAssets: 105000000000, inventory: 9000000000, receivables: 70000000000, totalDebt: 0, currentLiabilities: 10000000, krSales: 77420, usSales: 34409, cnSales: 54225, salesVolume: 166054, marketingExpense: 16000000000, rdExpense: 8000000000 }
-];
+// 성능 최적화: 데모 데이터를 완전히 제거하고, 기본 골격(0)만 가볍게 생성합니다.
+const EMPTY_QUARTERS = [
+  "3차 4Q", "4차 1Q", "4차 2Q", "4차 3Q", "4차 4Q", 
+  "5차 1Q", "5차 2Q", "5차 3Q", "5차 4Q"
+].map(name => ({
+  name, sales: 0, operatingProfit: 0, netIncome: 0, totalAssets: 0, totalEquity: 0,
+  currentAssets: 0, quickAssets: 0, inventory: 0, receivables: 0, currentLiabilities: 0,
+  krSales: 0, usSales: 0, cnSales: 0, salesVolume: 0, marketingExpense: 0, rdExpense: 0
+}));
 
+// 호평받은 경제성 분석기(NPV/IRR) 초기 세팅값 유지
 const INITIAL_INVESTMENTS = [
   { id: "patent", title: "신공정 특허 인수", initial: -2000000000, cf: [800000000, 900000000, 1000000000, 1200000000] },
   { id: "mna", title: "유통채널 M&A", initial: -5000000000, cf: [1500000000, 1800000000, 2200000000, 2500000000] },
@@ -18,34 +19,39 @@ const INITIAL_INVESTMENTS = [
 
 export default function App() {
   // ==========================================
-  // 구글 스프레드시트 공유 ID (실시간 연동용)
+  // [중요] 반드시 따옴표("") 안에 ID를 넣으셔야 합니다!
   // ==========================================
-  const spreadsheetId = 1WMTK2Or9K_HzgGlhKzkSDK41G8J_Q4s4ORV1LS83nsc;
+  const spreadsheetId = "1WMTK2Or9K_HzgGlhKzkSDK41G8J_Q4s4ORV1LS83nsc";
 
   const [activeTab, setActiveTab] = useState('summary');
-  const [quarters, setQuarters] = useState(DEMO_QUARTERS);
-  const [selectedQIdx, setSelectedQIdx] = useState(5);
+  const [quarters, setQuarters] = useState(EMPTY_QUARTERS);
+  const [selectedQIdx, setSelectedQIdx] = useState(0);
   const [isLinked, setIsLinked] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // What-if 및 민감도 분석기 데이터 상태
+  // What-if 민감도 분석기 상태
   const [price, setPrice] = useState(700000); 
   const [variableCost, setVariableCost] = useState(420000); 
   const [fixedCost, setFixedCost] = useState(30000000000); 
   const [targetVolume, setTargetVolume] = useState(150000); 
 
-  // NPV / IRR 할인율 상태
+  // NPV / IRR 상태
   const [discountRate, setDiscountRate] = useState(3.0);
   const [investments, setInvestments] = useState(INITIAL_INVESTMENTS);
 
-  // 데이터 Fetch
+  // 구글 시트 연동 Fetch 로직 (오류 발생 시 0으로 안전 처리)
   const fetchGoogleSheetData = async () => {
-    if (!spreadsheetId) return;
+    if (!spreadsheetId) {
+      setQuarters(EMPTY_QUARTERS);
+      return;
+    }
+    
     setLoading(true);
     try {
       const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv`;
       const response = await fetch(url);
       if (!response.ok) throw new Error("구글 시트를 읽어올 수 없습니다.");
+      
       const text = await response.text();
       const rows = text.split("\n").map(row => row.split(","));
       
@@ -80,18 +86,23 @@ export default function App() {
           if (key.includes("8. 연구개발비")) qData.rdExpense = val;
         });
 
-        if (qData.sales > 0 || qData.salesVolume > 0) {
-          parsedQuarters.push(qData);
-        }
+        parsedQuarters.push(qData);
       });
 
       if (parsedQuarters.length > 0) {
         setQuarters(parsedQuarters);
-        setSelectedQIdx(parsedQuarters.length - 1);
+        // 실제 매출 데이터가 있는 가장 최근 분기를 자동 선택
+        const lastValidIdx = parsedQuarters.map(q => q.sales > 0).lastIndexOf(true);
+        setSelectedQIdx(lastValidIdx >= 0 ? lastValidIdx : 0);
         setIsLinked(true);
+      } else {
+        setQuarters(EMPTY_QUARTERS);
+        setIsLinked(false);
       }
     } catch (err) {
-      console.error("구글 스프레드시트 연동 실패:", err);
+      console.error("데이터 연동 실패, 빈 화면으로 대체합니다:", err);
+      setQuarters(EMPTY_QUARTERS);
+      setIsLinked(false);
     } finally {
       setLoading(false);
     }
@@ -130,26 +141,27 @@ export default function App() {
     });
   }, [quarters]);
 
-  const activeQ = processedRatios[selectedQIdx] || processedRatios[processedRatios.length - 1];
+  // 에러 방어: 배열이 비었을 때 다운되지 않도록 안전한 기본값 제공
+  const activeQ = processedRatios[selectedQIdx] || processedRatios[0] || EMPTY_QUARTERS[0];
 
-  // 수치 포맷터
+  // 안전한 텍스트 포맷터 (NaN/Undefined 방어)
   const formatMillion = (value) => {
-    if (value === undefined || isNaN(value)) return "0";
+    if (!value || isNaN(value)) return "0원";
     return `${(value / 100000000).toLocaleString(undefined, { maximumFractionDigits: 1 })}억`;
   };
 
   const formatRaw = (value) => {
-    if (value === undefined || isNaN(value)) return "0";
+    if (!value || isNaN(value)) return "0";
     return value.toLocaleString();
   };
 
   const formatRatio = (value) => {
-    if (value === undefined || isNaN(value)) return "0.00%";
+    if (!value || isNaN(value)) return "0.00%";
     return `${value.toFixed(2)}%`;
   };
 
   const formatTurnover = (value) => {
-    if (value === undefined || isNaN(value)) return "0.00회";
+    if (!value || isNaN(value)) return "0.00회";
     return `${value.toFixed(2)}회`;
   };
 
@@ -194,7 +206,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans antialiased text-sm">
       
-      {/* 🔹 프리미엄 코퍼레이트 헤더 */}
+      {/* 프리미엄 코퍼레이트 헤더 */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
         <div className="max-w-[1400px] mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-3">
@@ -202,7 +214,7 @@ export default function App() {
               JE
             </div>
             <div>
-              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">임재현 기업 (JAERIM CORP)</h1>
+              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">임재현 팀</h1>
               <p className="text-xs text-slate-500 font-medium mt-0.5">Investor Relations & Executive Dashboard</p>
             </div>
           </div>
@@ -210,7 +222,7 @@ export default function App() {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-semibold text-slate-600">
               <span className={`w-2 h-2 rounded-full ${isLinked ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
-              {isLinked ? 'Live Data Synced' : 'Offline Demo'}
+              {isLinked ? 'Live Data Synced' : 'Sync Failed / Zero Data'}
             </div>
             <button 
               onClick={fetchGoogleSheetData}
@@ -222,7 +234,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* 🔹 네비게이션 탭 */}
+        {/* 네비게이션 탭 */}
         <div className="max-w-[1400px] mx-auto px-6 flex gap-8">
           {[
             { id: 'summary', name: '종합 성과 대시보드' },
@@ -247,7 +259,7 @@ export default function App() {
 
       <main className="max-w-[1400px] mx-auto p-6 space-y-8 mt-4">
         
-        {/* 🔹 상단 KPI 하이라이트 (모든 탭 공통 노출) */}
+        {/* 상단 KPI 하이라이트 */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm relative overflow-hidden">
             <div className="absolute top-0 left-0 w-1 h-full bg-blue-600"></div>
@@ -304,7 +316,6 @@ export default function App() {
               </div>
               
               <div className="h-80 flex items-end gap-6 border-b border-slate-200 pb-2 relative px-4">
-                {/* Y축 보조선 (가상) */}
                 <div className="absolute top-0 left-0 w-full h-full flex flex-col justify-between pointer-events-none">
                   {[...Array(5)].map((_, i) => (
                     <div key={i} className="w-full border-t border-slate-100 border-dashed"></div>
@@ -318,7 +329,6 @@ export default function App() {
 
                   return (
                     <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end relative group z-10">
-                      {/* 툴팁 */}
                       <div className="absolute bottom-full mb-3 bg-slate-800 text-white text-xs p-3 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none w-36">
                         <div className="font-bold mb-1 border-b border-slate-600 pb-1">{q.name}</div>
                         <div className="text-blue-300 flex justify-between"><span>매출:</span> <span>{formatMillion(q.sales)}</span></div>
@@ -345,7 +355,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* 우측: 지역별 점유율 및 판매량 */}
+            {/* 우측: 지역별 점유율 */}
             <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm flex flex-col justify-between">
               <div className="border-b border-slate-100 pb-4 mb-6">
                 <h2 className="font-bold text-slate-800 text-lg">지역별 판매 비중 분석</h2>
