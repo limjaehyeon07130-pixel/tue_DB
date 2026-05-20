@@ -1,0 +1,727 @@
+import React, { useState, useEffect, useMemo } from 'react';
+
+// 구글 시트 미연동 시 기본 렌더링을 위한 데모 데이터
+const DEMO_QUARTERS = [
+  { name: "3차 4Q", sales: 88631620000, operatingProfit: 5069504571, netIncome: 4119883657, totalAssets: 74315106254, totalEquity: 74315106254, currentAssets: 64315106254, quickAssets: 56723088633, inventory: 7836734071, receivables: 35452648000, totalDebt: 0, currentLiabilities: 10000000, krSales: 54225, usSales: 34409, cnSales: 55000, salesVolume: 143634, marketingExpense: 7390000000, rdExpense: 5000000000 },
+  { name: "4차 1Q", sales: 95061638854, operatingProfit: 5020140115, netIncome: 4990640115, totalAssets: 79156027165, totalEquity: 79156027165, currentAssets: 70156027165, quickAssets: 59671196909, inventory: 10484830256, receivables: 38024655541, totalDebt: 0, currentLiabilities: 10000000, krSales: 57034, usSales: 32204, cnSales: 39491, salesVolume: 128729, marketingExpense: 8751360000, rdExpense: 6000000000 },
+  { name: "4차 2Q", sales: 120027616700, operatingProfit: 6773813322, netIncome: 6723313322, totalAssets: 85812107354, totalEquity: 85812107354, currentAssets: 77812107354, quickAssets: 52150361487, inventory: 25661745867, receivables: 48011046680, totalDebt: 0, currentLiabilities: 10000000, krSales: 50758, usSales: 34945, cnSales: 55000, salesVolume: 140703, marketingExpense: 8103220000, rdExpense: 6480000000 },
+  { name: "4차 3Q", sales: 143574593837, operatingProfit: 17965346853, netIncome: 17935206853, totalAssets: 104478689207, totalEquity: 104478689207, currentAssets: 97478689207, quickAssets: 63663946684, inventory: 33814742523, receivables: 57429837535, totalDebt: 0, currentLiabilities: 10000000, krSales: 74765, usSales: 32358, cnSales: 72709, salesVolume: 179832, marketingExpense: 10526300000, rdExpense: 7000000000 },
+  { name: "4차 4Q", sales: 184376453347, operatingProfit: 15070922124, netIncome: 15075846124, totalAssets: 119554535331, totalEquity: 119554535331, currentAssets: 113554535331, quickAssets: 104065840311, inventory: 9488695020, receivables: 73750581339, totalDebt: 0, currentLiabilities: 10000000, krSales: 72709, usSales: 73824, cnSales: 38062, salesVolume: 184595, marketingExpense: 15835000000, rdExpense: 7700000000 },
+  { name: "5차 1Q", sales: 164497500392, operatingProfit: 24091689948, netIncome: 20150784448, totalAssets: 143405319779, totalEquity: 143405319779, currentAssets: 114000000000, quickAssets: 105000000000, inventory: 9000000000, receivables: 70000000000, totalDebt: 0, currentLiabilities: 10000000, krSales: 77420, usSales: 34409, cnSales: 54225, salesVolume: 166054, marketingExpense: 16000000000, rdExpense: 8000000000 }
+];
+
+const INITIAL_INVESTMENTS = [
+  { id: "patent", title: "신공정 특허 인수", initial: -2000000000, cf: [800000000, 900000000, 1000000000, 1200000000] },
+  { id: "mna", title: "유통채널 M&A", initial: -5000000000, cf: [1500000000, 1800000000, 2200000000, 2500000000] },
+  { id: "expansion", title: "신공장 설비 증설", initial: -10000000000, cf: [2500000000, 3500000000, 4500000000, 5500000000] }
+];
+
+export default function App() {
+  // ==========================================
+  // 구글 스프레드시트 공유 ID (실시간 연동용)
+  // ==========================================
+  const spreadsheetId = "1WMTK2Or9K_HzgGlhKzkSDK41G8J_Q4s4ORV1LS83nsc";
+
+  const [activeTab, setActiveTab] = useState('summary');
+  const [quarters, setQuarters] = useState(DEMO_QUARTERS);
+  const [selectedQIdx, setSelectedQIdx] = useState(5);
+  const [isLinked, setIsLinked] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // What-if 및 민감도 분석기 데이터 상태
+  const [price, setPrice] = useState(700000); 
+  const [variableCost, setVariableCost] = useState(420000); 
+  const [fixedCost, setFixedCost] = useState(30000000000); 
+  const [targetVolume, setTargetVolume] = useState(150000); 
+
+  // NPV / IRR 할인율 상태
+  const [discountRate, setDiscountRate] = useState(3.0);
+  const [investments, setInvestments] = useState(INITIAL_INVESTMENTS);
+
+  // 데이터 Fetch
+  const fetchGoogleSheetData = async () => {
+    if (!spreadsheetId) return;
+    setLoading(true);
+    try {
+      const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("구글 시트를 읽어올 수 없습니다.");
+      const text = await response.text();
+      const rows = text.split("\n").map(row => row.split(","));
+      
+      const parsedQuarters = [];
+      const headerNames = rows[0].slice(1).map(h => h.replace(/[\r\n]+/g, "").trim());
+
+      headerNames.forEach((name, colIdx) => {
+        if (!name || name === "예정" || name.includes("예정")) return;
+        
+        const qData = { name: name, sales: 0, operatingProfit: 0, netIncome: 0, totalAssets: 0, totalEquity: 0, currentAssets: 0, quickAssets: 0, inventory: 0, receivables: 0, currentLiabilities: 0, krSales: 0, usSales: 0, cnSales: 0, salesVolume: 0, marketingExpense: 0, rdExpense: 0 };
+        
+        rows.forEach(row => {
+          const key = row[0] ? row[0].replace(/[\r\n]+/g, "").trim() : "";
+          const valStr = row[colIdx + 1] ? row[colIdx + 1].replace(/[\r\n]+/g, "").trim() : "0";
+          const val = parseFloat(valStr.replace(/,/g, "")) || 0;
+
+          if (key.includes("1. 매출액")) qData.sales = val;
+          if (key.includes("2. 영업이익")) qData.operatingProfit = val;
+          if (key.includes("3. 당기순이익")) qData.netIncome = val;
+          if (key.includes("4. 자산총계")) qData.totalAssets = val;
+          if (key.includes("5. 자본총계")) qData.totalEquity = val;
+          if (key.includes("6. 유동자산")) qData.currentAssets = val;
+          if (key.includes("7. 당좌자산")) qData.quickAssets = val;
+          if (key.includes("8. 재고자산")) qData.inventory = val;
+          if (key.includes("9. 매출채권")) qData.receivables = val;
+          if (key.includes("11. 유동부채")) qData.currentLiabilities = val;
+          if (key.includes("1. 한국 판매량")) qData.krSales = val;
+          if (key.includes("2. 미국 판매량")) qData.usSales = val;
+          if (key.includes("3. 중국 판매량")) qData.cnSales = val;
+          if (key.includes("4. 총 판매량")) qData.salesVolume = val;
+          if (key.includes("5. 총 광고비")) qData.marketingExpense = val;
+          if (key.includes("8. 연구개발비")) qData.rdExpense = val;
+        });
+
+        if (qData.sales > 0 || qData.salesVolume > 0) {
+          parsedQuarters.push(qData);
+        }
+      });
+
+      if (parsedQuarters.length > 0) {
+        setQuarters(parsedQuarters);
+        setSelectedQIdx(parsedQuarters.length - 1);
+        setIsLinked(true);
+      }
+    } catch (err) {
+      console.error("구글 스프레드시트 연동 실패:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchGoogleSheetData();
+  }, [spreadsheetId]);
+
+  // 실시간 재무비율 계산 유틸리티
+  const processedRatios = useMemo(() => {
+    return quarters.map((q, idx) => {
+      const prevQ = idx > 0 ? quarters[idx - 1] : null;
+
+      const currentRatio = q.currentLiabilities > 0 ? (q.currentAssets / q.currentLiabilities) * 100 : 0;
+      const quickRatio = q.currentLiabilities > 0 ? (q.quickAssets / q.currentLiabilities) * 100 : 0;
+      const inventoryTurnover = q.inventory > 0 ? q.sales / q.inventory : 0;
+      const receivablesTurnover = q.receivables > 0 ? q.sales / q.receivables : 0;
+      const roa = q.totalAssets > 0 ? (q.netIncome / q.totalAssets) * 100 : 0;
+      const roe = q.totalEquity > 0 ? (q.netIncome / q.totalEquity) * 100 : 0;
+
+      const salesGrowth = prevQ && prevQ.sales > 0 ? ((q.sales - prevQ.sales) / prevQ.sales) * 100 : 0;
+      const opGrowth = prevQ && prevQ.operatingProfit > 0 ? ((q.operatingProfit - prevQ.operatingProfit) / prevQ.operatingProfit) * 100 : 0;
+
+      return {
+        ...q,
+        currentRatio,
+        quickRatio,
+        inventoryTurnover,
+        receivablesTurnover,
+        roa,
+        roe,
+        salesGrowth,
+        opGrowth
+      };
+    });
+  }, [quarters]);
+
+  const activeQ = processedRatios[selectedQIdx] || processedRatios[processedRatios.length - 1];
+
+  // 수치 포맷터
+  const formatMillion = (value) => {
+    if (value === undefined || isNaN(value)) return "0";
+    return `${(value / 100000000).toLocaleString(undefined, { maximumFractionDigits: 1 })}억`;
+  };
+
+  const formatRaw = (value) => {
+    if (value === undefined || isNaN(value)) return "0";
+    return value.toLocaleString();
+  };
+
+  const formatRatio = (value) => {
+    if (value === undefined || isNaN(value)) return "0.00%";
+    return `${value.toFixed(2)}%`;
+  };
+
+  const formatTurnover = (value) => {
+    if (value === undefined || isNaN(value)) return "0.00회";
+    return `${value.toFixed(2)}회`;
+  };
+
+  // NPV / IRR 로직
+  const calcNPV = (initial, cashflows, rate) => {
+    const r = rate / 100;
+    let npv = initial;
+    for (let t = 0; t < cashflows.length; t++) {
+      npv += cashflows[t] / Math.pow(1 + r, t + 1);
+    }
+    return npv;
+  };
+
+  const calcIRR = (initial, cashflows) => {
+    let guess = 0.1;
+    const maxIteration = 100;
+    const precision = 1e-6;
+    for (let i = 0; i < maxIteration; i++) {
+      let npv = initial;
+      let dNpv = 0;
+      for (let t = 0; t < cashflows.length; t++) {
+        const cf = cashflows[t];
+        npv += cf / Math.pow(1 + guess, t + 1);
+        dNpv -= ((t + 1) * cf) / Math.pow(1 + guess, t + 2);
+      }
+      const nextGuess = guess - npv / dNpv;
+      if (Math.abs(nextGuess - guess) < precision) return nextGuess * 100;
+      guess = nextGuess;
+    }
+    return guess * 100;
+  };
+
+  // BEP 계산
+  const bepVolume = useMemo(() => {
+    const unitMargin = price - variableCost;
+    if (unitMargin <= 0) return Infinity;
+    return Math.ceil(fixedCost / unitMargin);
+  }, [price, variableCost, fixedCost]);
+
+  const simulatedProfit = (price - variableCost) * targetVolume - fixedCost;
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans antialiased text-sm">
+      
+      {/* 🔹 프리미엄 코퍼레이트 헤더 */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+        <div className="max-w-[1400px] mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-700 rounded-lg flex items-center justify-center text-white font-black text-xl shadow-md">
+              JE
+            </div>
+            <div>
+              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">임재현 기업 (JAERIM CORP)</h1>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">Investor Relations & Executive Dashboard</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-semibold text-slate-600">
+              <span className={`w-2 h-2 rounded-full ${isLinked ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
+              {isLinked ? 'Live Data Synced' : 'Offline Demo'}
+            </div>
+            <button 
+              onClick={fetchGoogleSheetData}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-xs font-bold transition-colors shadow-sm flex items-center gap-2"
+            >
+              {loading ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-rotate-right"></i>}
+              데이터 갱신
+            </button>
+          </div>
+        </div>
+
+        {/* 🔹 네비게이션 탭 */}
+        <div className="max-w-[1400px] mx-auto px-6 flex gap-8">
+          {[
+            { id: 'summary', name: '종합 성과 대시보드' },
+            { id: 'financials', name: '상세 재무제표 분석' },
+            { id: 'decisions', name: '자본예산 의사결정 (NPV/IRR)' },
+            { id: 'whatif', name: '시나리오 시뮬레이터 (What-If)' }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`py-4 text-sm font-bold border-b-[3px] transition-colors ${
+                activeTab === tab.id
+                  ? 'border-blue-600 text-blue-700'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+              }`}
+            >
+              {tab.name}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      <main className="max-w-[1400px] mx-auto p-6 space-y-8 mt-4">
+        
+        {/* 🔹 상단 KPI 하이라이트 (모든 탭 공통 노출) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+          <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-1 h-full bg-blue-600"></div>
+            <div className="text-sm font-semibold text-slate-500">당기 매출액 ({activeQ.name})</div>
+            <div className="text-3xl font-black text-slate-900 mt-2">{formatMillion(activeQ.sales)}</div>
+            <div className="mt-3 flex items-center gap-2">
+              <span className={`px-2 py-0.5 rounded text-xs font-bold ${activeQ.salesGrowth >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                {activeQ.salesGrowth >= 0 ? '▲' : '▼'} {Math.abs(activeQ.salesGrowth || 0).toFixed(1)}%
+              </span>
+              <span className="text-xs text-slate-400 font-medium">vs 전기 대비</span>
+            </div>
+          </div>
+          
+          <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
+            <div className="text-sm font-semibold text-slate-500">영업이익 ({activeQ.name})</div>
+            <div className="text-3xl font-black text-slate-900 mt-2">{formatMillion(activeQ.operatingProfit)}</div>
+            <div className="mt-3 flex items-center gap-2">
+              <span className={`px-2 py-0.5 rounded text-xs font-bold ${activeQ.opGrowth >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                {activeQ.opGrowth >= 0 ? '▲' : '▼'} {Math.abs(activeQ.opGrowth || 0).toFixed(1)}%
+              </span>
+              <span className="text-xs text-slate-400 font-medium">vs 전기 대비</span>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
+            <div className="text-sm font-semibold text-slate-500">자기자본이익률 (ROE)</div>
+            <div className="text-3xl font-black text-slate-900 mt-2">{formatRatio(activeQ.roe)}</div>
+            <div className="mt-3 text-xs text-slate-400 font-medium">
+              자본 효율성 및 수익 창출 능력 지표
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+            <div className="text-sm font-semibold text-slate-500">유동비율 (Current Ratio)</div>
+            <div className="text-3xl font-black text-slate-900 mt-2">{formatRatio(activeQ.currentRatio)}</div>
+            <div className="mt-3 text-xs text-slate-400 font-medium">
+              재무 건전성 및 단기 채무 상환 능력
+            </div>
+          </div>
+        </div>
+
+        {/* 탭 1: 종합 성과 대시보드 */}
+        {activeTab === 'summary' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* 좌측: 실적 트렌드 차트 */}
+            <div className="lg:col-span-2 bg-white border border-slate-200 p-6 rounded-xl shadow-sm flex flex-col justify-between">
+              <div className="border-b border-slate-100 pb-4 mb-6 flex justify-between items-center">
+                <h2 className="font-bold text-slate-800 text-lg">경영 실적 성장 추이 (매출 및 이익)</h2>
+                <span className="text-xs text-slate-500 font-semibold bg-slate-100 px-2 py-1 rounded">단위: 억 원</span>
+              </div>
+              
+              <div className="h-80 flex items-end gap-6 border-b border-slate-200 pb-2 relative px-4">
+                {/* Y축 보조선 (가상) */}
+                <div className="absolute top-0 left-0 w-full h-full flex flex-col justify-between pointer-events-none">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="w-full border-t border-slate-100 border-dashed"></div>
+                  ))}
+                </div>
+
+                {processedRatios.map((q, idx) => {
+                  const maxVal = Math.max(...quarters.map(item => item.sales));
+                  const sHeight = maxVal > 0 ? (q.sales / maxVal) * 90 : 0;
+                  const pHeight = maxVal > 0 ? (q.operatingProfit / maxVal) * 90 : 0;
+
+                  return (
+                    <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end relative group z-10">
+                      {/* 툴팁 */}
+                      <div className="absolute bottom-full mb-3 bg-slate-800 text-white text-xs p-3 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none w-36">
+                        <div className="font-bold mb-1 border-b border-slate-600 pb-1">{q.name}</div>
+                        <div className="text-blue-300 flex justify-between"><span>매출:</span> <span>{formatMillion(q.sales)}</span></div>
+                        <div className="text-amber-400 flex justify-between"><span>이익:</span> <span>{formatMillion(q.operatingProfit)}</span></div>
+                      </div>
+
+                      <div className="w-full flex justify-center gap-1.5 h-full items-end">
+                        <div style={{ height: `${sHeight}%` }} className="w-8 bg-blue-600 rounded-t-sm shadow-sm group-hover:bg-blue-500 transition-colors"></div>
+                        <div style={{ height: `${Math.max(pHeight, 2)}%` }} className="w-8 bg-amber-500 rounded-t-sm shadow-sm group-hover:bg-amber-400 transition-colors"></div>
+                      </div>
+                      <span className="text-xs text-slate-600 font-semibold mt-3 whitespace-nowrap">{q.name}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              <div className="flex justify-center mt-6 gap-6 text-sm font-semibold text-slate-600">
+                <div className="flex items-center gap-2">
+                  <span className="w-3.5 h-3.5 bg-blue-600 rounded-sm shadow-sm"></span> 매출액
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3.5 h-3.5 bg-amber-500 rounded-sm shadow-sm"></span> 영업이익
+                </div>
+              </div>
+            </div>
+
+            {/* 우측: 지역별 점유율 및 판매량 */}
+            <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm flex flex-col justify-between">
+              <div className="border-b border-slate-100 pb-4 mb-6">
+                <h2 className="font-bold text-slate-800 text-lg">지역별 판매 비중 분석</h2>
+              </div>
+              
+              <div className="flex-1 flex flex-col justify-center space-y-6">
+                <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-200">
+                  <span className="text-slate-600 font-semibold text-sm">분석 대상 분기</span>
+                  <select
+                    value={selectedQIdx}
+                    onChange={(e) => setSelectedQIdx(Number(e.target.value))}
+                    className="bg-white border border-slate-300 text-slate-800 text-sm font-bold py-1.5 px-3 rounded-md shadow-sm outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {quarters.map((q, idx) => (
+                      <option key={idx} value={idx}>{q.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-5">
+                  {[
+                    { label: "한국 내수 시장", val: activeQ.krSales, color: "bg-blue-600" },
+                    { label: "미국 수출", val: activeQ.usSales, color: "bg-indigo-500" },
+                    { label: "중국 수출", val: activeQ.cnSales, color: "bg-emerald-500" }
+                  ].map((item, idx) => {
+                    const total = activeQ.salesVolume || 1;
+                    const pct = total > 0 ? (item.val / total) * 100 : 0;
+                    return (
+                      <div key={idx} className="space-y-2">
+                        <div className="flex justify-between items-end">
+                          <span className="font-bold text-slate-700 text-sm">{item.label}</span>
+                          <div className="text-right">
+                            <span className="font-black text-slate-900 text-base">{formatRaw(item.val)}대</span>
+                            <span className="text-slate-500 text-xs ml-2 font-medium">({(pct || 0).toFixed(1)}%)</span>
+                          </div>
+                        </div>
+                        <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                          <div style={{ width: `${pct}%` }} className={`h-full ${item.color} rounded-full`}></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="bg-blue-50 text-blue-800 text-xs font-medium p-4 rounded-lg mt-6 border border-blue-100">
+                <i className="fa-solid fa-circle-info mr-1.5"></i> 
+                각 지역별 재고 소진율과 마진을 모니터링하여 탄력적인 자본 및 공급망 재배치가 필요합니다.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 탭 2: 상세 재무제표 분석 */}
+        {activeTab === 'financials' && (
+          <div className="bg-white border border-slate-200 p-8 rounded-xl shadow-sm">
+            <div className="border-b border-slate-200 pb-4 mb-6 flex justify-between items-end">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">핵심 재무상태표 및 손익계산 요약</h2>
+                <p className="text-sm text-slate-500 mt-1">구글 스프레드시트 원본 데이터 기반 정밀 분석 시트</p>
+              </div>
+              <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-md">단위: 원 (KRW) / 비율 (%)</span>
+            </div>
+
+            <div className="overflow-x-auto pb-4">
+              <table className="w-full text-left border-collapse min-w-[800px]">
+                <thead>
+                  <tr>
+                    <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 border-b-2 border-slate-300 sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] w-1/4">재무 지표 항목</th>
+                    {processedRatios.map((q, idx) => (
+                      <th key={idx} className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300 whitespace-nowrap">{q.name}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  <tr className="bg-slate-50/50"><td colSpan={quarters.length + 1} className="py-3 px-4 font-extrabold text-blue-800 text-xs sticky left-0 z-10">1. 영업 및 재무 상태</td></tr>
+                  {[
+                    { label: "매출액", key: "sales" },
+                    { label: "영업이익", key: "operatingProfit" },
+                    { label: "당기순이익", key: "netIncome" },
+                    { label: "자산총계", key: "totalAssets" },
+                    { label: "자본총계 (자기자본)", key: "totalEquity" },
+                    { label: "유동자산", key: "currentAssets" },
+                    { label: "당좌자산", key: "quickAssets" },
+                    { label: "재고자산", key: "inventory" },
+                    { label: "매출채권", key: "receivables" },
+                    { label: "유동부채", key: "currentLiabilities" }
+                  ].map((row, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3.5 px-4 font-semibold text-slate-700 sticky left-0 bg-white shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] z-10 border-r border-slate-100">{row.label}</td>
+                      {processedRatios.map((q, qIdx) => (
+                        <td key={qIdx} className="py-3.5 px-4 text-right font-mono text-slate-600 font-medium">{formatRaw(q[row.key])}</td>
+                      ))}
+                    </tr>
+                  ))}
+
+                  <tr className="bg-slate-50/50"><td colSpan={quarters.length + 1} className="py-3 px-4 font-extrabold text-blue-800 text-xs sticky left-0 z-10 border-t-2 border-slate-200 mt-4">2. 핵심 재무 비율 분석 (수식 연동)</td></tr>
+                  {[
+                    { label: "유동비율", key: "currentRatio", format: formatRatio, desc: "유동자산 / 유동부채" },
+                    { label: "당좌비율", key: "quickRatio", format: formatRatio, desc: "당좌자산 / 유동부채" },
+                    { label: "재고자산 회전율", key: "inventoryTurnover", format: formatTurnover, desc: "매출액 / 재고자산" },
+                    { label: "매출채권 회전율", key: "receivablesTurnover", format: formatTurnover, desc: "매출액 / 매출채권" },
+                    { label: "총자산이익률 (ROA)", key: "roa", format: formatRatio, desc: "순이익 / 자산총계" },
+                    { label: "자기자본이익률 (ROE)", key: "roe", format: formatRatio, desc: "순이익 / 자본총계" }
+                  ].map((row, idx) => (
+                    <tr key={idx} className="bg-blue-50/20 hover:bg-blue-50/50 transition-colors">
+                      <td className="py-3 px-4 sticky left-0 bg-white shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] z-10 border-r border-slate-100">
+                        <div className="font-bold text-slate-800">{row.label}</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">{row.desc}</div>
+                      </td>
+                      {processedRatios.map((q, qIdx) => (
+                        <td key={qIdx} className="py-3 px-4 text-right font-mono text-blue-700 font-bold">{row.format(q[row.key])}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* 탭 3: 자본예산 의사결정 (NPV/IRR) */}
+        {activeTab === 'decisions' && (
+          <div className="bg-white border border-slate-200 p-8 rounded-xl shadow-sm space-y-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-slate-200 pb-5 gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">전략적 자본예산 투자 타당성 분석</h2>
+                <p className="text-sm text-slate-500 mt-1">프로젝트별 기대 현금흐름과 자본 비용을 기반으로 NPV 및 IRR을 실시간 도출합니다.</p>
+              </div>
+              <div className="flex items-center gap-3 bg-slate-50 px-5 py-2.5 rounded-lg border border-slate-200 shadow-sm">
+                <span className="text-sm font-bold text-slate-700">WACC (할인율):</span>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="20"
+                    value={discountRate}
+                    onChange={(e) => setDiscountRate(parseFloat(e.target.value) || 0)}
+                    className="bg-white border border-slate-300 text-blue-700 text-center font-black py-1 px-2 w-20 text-sm rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                  <span className="text-sm font-bold text-slate-600">%</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto pb-4">
+              <table className="w-full text-left border-collapse min-w-[900px]">
+                <thead>
+                  <tr>
+                    <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 border-b-2 border-slate-300">투자안 프로젝트</th>
+                    <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300">초기 투자 (0기)</th>
+                    <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300">1기 현금흐름</th>
+                    <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300">2기 현금흐름</th>
+                    <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300">3기 현금흐름</th>
+                    <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300">4기 현금흐름</th>
+                    <th className="py-4 px-4 bg-blue-50 font-extrabold text-blue-800 text-right border-b-2 border-blue-200">NPV</th>
+                    <th className="py-4 px-4 bg-indigo-50 font-extrabold text-indigo-800 text-right border-b-2 border-indigo-200">IRR</th>
+                    <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-center border-b-2 border-slate-300">최종 판정</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {investments.map((inv, idx) => {
+                    const npv = calcNPV(inv.initial, inv.cf, discountRate);
+                    const irr = calcIRR(inv.initial, inv.cf);
+
+                    return (
+                      <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-4 px-4 font-bold text-slate-800">{inv.title}</td>
+                        <td className="py-4 px-4 text-right">
+                          <input
+                            type="text"
+                            value={inv.initial.toLocaleString()}
+                            onChange={(e) => {
+                              const v = parseFloat(e.target.value.replace(/,/g, '')) || 0;
+                              const updated = [...investments];
+                              updated[idx].initial = v > 0 ? -v : v;
+                              setInvestments(updated);
+                            }}
+                            className="bg-white text-right border border-slate-300 py-1.5 px-2 text-sm font-mono text-rose-600 font-bold w-28 rounded focus:ring-2 focus:ring-rose-500 outline-none shadow-inner"
+                          />
+                        </td>
+                        {inv.cf.map((val, cfIdx) => (
+                          <td key={cfIdx} className="py-4 px-4 text-right">
+                            <input
+                              type="text"
+                              value={val.toLocaleString()}
+                              onChange={(e) => {
+                                const v = parseFloat(e.target.value.replace(/,/g, '')) || 0;
+                                const updated = [...investments];
+                                updated[idx].cf[cfIdx] = v;
+                                setInvestments(updated);
+                              }}
+                              className="bg-white text-right border border-slate-300 py-1.5 px-2 text-sm font-mono text-slate-700 font-semibold w-24 rounded focus:ring-2 focus:ring-blue-500 outline-none shadow-inner"
+                            />
+                          </td>
+                        ))}
+                        <td className={`py-4 px-4 text-right font-mono font-black ${npv >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>
+                          {formatRaw(Math.round(npv))} 원
+                        </td>
+                        <td className="py-4 px-4 text-right font-mono font-black text-indigo-600">
+                          {(irr || 0).toFixed(2)}%
+                        </td>
+                        <td className="py-4 px-4 text-center">
+                          <span className={`px-3 py-1.5 rounded-md text-xs font-extrabold shadow-sm ${
+                            npv >= 0 ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-rose-100 text-rose-700 border border-rose-200'
+                          }`}>
+                            {npv >= 0 ? '투자 승인 (GO)' : '기각 (NO-GO)'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="bg-slate-50 p-5 rounded-lg text-sm text-slate-600 border border-slate-200 leading-relaxed">
+              <strong className="text-slate-800 flex items-center gap-2 mb-2">
+                <i className="fa-solid fa-lightbulb text-amber-500"></i> 재무 의사결정 원칙
+              </strong>
+              <ul className="list-disc pl-5 space-y-1">
+                <li><b>NPV (순현재가치) 원칙:</b> 할인율을 반영한 미래 현금유입의 현재가치가 투자비용을 초과(NPV &gt; 0)할 때 주주가치가 극대화됩니다.</li>
+                <li><b>IRR (내부수익률) 원칙:</b> 프로젝트의 자체 수익률이 기업의 자본조달비용(WACC)보다 높을 경우 투자를 집행합니다.</li>
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {/* 탭 4: 시나리오 시뮬레이터 (What-If) */}
+        {activeTab === 'whatif' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* 좌측: 슬라이더 패널 */}
+            <div className="bg-white border border-slate-200 p-8 rounded-xl shadow-sm space-y-8">
+              <div className="border-b border-slate-100 pb-4">
+                <h2 className="font-bold text-slate-800 text-lg">가격 및 원가 변동 매개변수</h2>
+                <p className="text-xs text-slate-500 mt-1">슬라이더를 조작하여 실시간 민감도를 테스트하세요.</p>
+              </div>
+              
+              <div className="space-y-6">
+                <div>
+                  <div className="flex justify-between text-sm mb-2 font-bold">
+                    <span className="text-slate-600">목표 판매가 (Price)</span>
+                    <span className="text-blue-600">{price.toLocaleString()} 원</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="400000"
+                    max="1000000"
+                    step="10000"
+                    value={price}
+                    onChange={(e) => setPrice(Number(e.target.value))}
+                    className="w-full accent-blue-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-sm mb-2 font-bold">
+                    <span className="text-slate-600">단위당 변동비 (VC)</span>
+                    <span className="text-rose-500">{variableCost.toLocaleString()} 원</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="250000"
+                    max="600000"
+                    step="5000"
+                    value={variableCost}
+                    onChange={(e) => setVariableCost(Number(e.target.value))}
+                    className="w-full accent-rose-500 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-sm mb-2 font-bold">
+                    <span className="text-slate-600">분기 총 고정비 (FC)</span>
+                    <span className="text-amber-500">{(fixedCost / 100000000).toFixed(1)} 억 원</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="10000000000"
+                    max="50000000000"
+                    step="500000000"
+                    value={fixedCost}
+                    onChange={(e) => setFixedCost(Number(e.target.value))}
+                    className="w-full accent-amber-500 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-sm mb-2 font-bold">
+                    <span className="text-slate-600">예상 판매 수량 (Q)</span>
+                    <span className="text-emerald-600">{targetVolume.toLocaleString()} 대</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="50000"
+                    max="250000"
+                    step="5000"
+                    value={targetVolume}
+                    onChange={(e) => setTargetVolume(Number(e.target.value))}
+                    className="w-full accent-emerald-500 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 우측: 시뮬레이션 결과 */}
+            <div className="lg:col-span-2 bg-white border border-slate-200 p-8 rounded-xl shadow-sm flex flex-col justify-between">
+              <div>
+                <h2 className="font-bold text-slate-800 text-lg border-b border-slate-100 pb-4">손익분기점 (BEP) 시뮬레이션 결과</h2>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 my-8">
+                <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 shadow-sm text-center">
+                  <div className="text-sm font-bold text-slate-500 mb-2">필수 손익분기 수량</div>
+                  <div className="text-2xl font-black text-blue-600 font-mono">
+                    {bepVolume === Infinity ? "오류" : `${bepVolume.toLocaleString()} 대`}
+                  </div>
+                </div>
+                <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 shadow-sm text-center">
+                  <div className="text-sm font-bold text-slate-500 mb-2">BEP 달성 기준 매출</div>
+                  <div className="text-2xl font-black text-blue-600 font-mono">
+                    {bepVolume === Infinity ? "오류" : formatMillion(bepVolume * price)}
+                  </div>
+                </div>
+                <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 shadow-sm text-center">
+                  <div className="text-sm font-bold text-slate-500 mb-2">시나리오 예상 영업이익</div>
+                  <div className={`text-2xl font-black font-mono ${simulatedProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {formatMillion(simulatedProfit)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="font-bold text-slate-700 text-sm">안전 마진(Margin of Safety) 분석</span>
+                  <span className={`px-3 py-1 rounded-md text-xs font-extrabold ${
+                    targetVolume >= bepVolume ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                  }`}>
+                    {targetVolume >= bepVolume ? "수익 달성 (이익 구간)" : "손실 위험 (적자 구간)"}
+                  </span>
+                </div>
+                
+                <div className="relative pt-2 pb-6">
+                  <div className="h-4 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner relative">
+                    <div
+                      style={{ width: `${Math.min((targetVolume / 250000) * 100, 100)}%` }}
+                      className={`h-full transition-all duration-500 ${targetVolume >= bepVolume ? 'bg-emerald-500' : 'bg-amber-400'}`}
+                    ></div>
+                    {bepVolume !== Infinity && bepVolume < 250000 && (
+                      <div
+                        style={{ left: `${(bepVolume / 250000) * 100}%` }}
+                        className="absolute top-0 bottom-0 w-1.5 bg-rose-500 shadow-md"
+                      ></div>
+                    )}
+                  </div>
+                  
+                  <div className="absolute top-12 w-full flex justify-between text-xs font-bold text-slate-500">
+                    <span>0 대</span>
+                    {bepVolume !== Infinity && bepVolume < 250000 && (
+                      <span className="text-rose-600 absolute" style={{ left: `calc(${(bepVolume / 250000) * 100}% - 20px)` }}>
+                        BEP 선
+                      </span>
+                    )}
+                    <span className="text-emerald-600 absolute right-0 text-right">
+                      목표치: {targetVolume.toLocaleString()} 대
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </main>
+    </div>
+  );
+}
