@@ -8,7 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <!-- React & Babel Standalone (Vercel 404 완벽 해결용) -->
+    <!-- React & Babel Standalone (Vercel 배포 최적화) -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -24,13 +24,11 @@
         // ==========================================
         const apiKey = ""; 
 
-        // 🚀 포맷팅 함수
         const formatMillion = (v) => (!v || isNaN(v)) ? "0원" : `${(v / 100000000).toLocaleString(undefined, { maximumFractionDigits: 1 })}억`;
         const formatRaw = (v) => (!v || isNaN(v)) ? "0" : Number(v).toLocaleString();
         const formatRatio = (v) => (!v || isNaN(v)) ? "0.00%" : `${Number(v).toFixed(2)}%`;
         const formatTurnover = (v) => (!v || isNaN(v)) ? "0.00회" : `${Number(v).toFixed(2)}회`;
 
-        // 🚀 사용자가 직접 수정한 정확도 높은 데모 데이터 셋 (연동 실패 시 이 데이터로 완벽 구동)
         const DEMO_QUARTERS = [
           { name: "3차 4Q", sales: 88631620000, operatingProfit: 5069504571, netIncome: 4119883657, totalAssets: 74315106254, totalEquity: 74315106254, currentAssets: 64315106254, quickAssets: 56723088633, inventory: 7836734071, receivables: 35452648000, currentLiabilities: 10000000, krSales: 54225, usSales: 34409, cnSales: 55000, salesVolume: 143634 },
           { name: "4차 1Q", sales: 95061638854, operatingProfit: 5020140115, netIncome: 4990640115, totalAssets: 79156027165, totalEquity: 79156027165, currentAssets: 70156027165, quickAssets: 59671196909, inventory: 10484830256, receivables: 38024655541, currentLiabilities: 10000000, krSales: 57034, usSales: 32204, cnSales: 39491, salesVolume: 128729 },
@@ -127,7 +125,6 @@
             setLoading(true);
             setErrorMsg("");
             try {
-              // 💡 Vercel 환경에서 CORS 우회를 보장하는 export endpoint 적용
               const url = `https://docs.google.com/spreadsheets/d/${actualId}/export?format=csv`;
               const response = await fetch(url);
               
@@ -160,20 +157,21 @@
 
                   if (val !== 0) hasValidData = true;
 
+                  // 🚀 ROE 오작동 방지 핵심 코드: "이익률", "ROE", "비율", "회전율", "증가율" 키워드가 포함된 행을 철저히 배제하여 원천 데이터 오염 차단
                   if (key.includes("매출액") && !key.includes("증가율")) qData.sales = val;
-                  else if (key.includes("영업이익") && !key.includes("증가율")) qData.operatingProfit = val;
-                  else if (key.includes("당기순이익")) qData.netIncome = val;
-                  else if (key.includes("자산총계")) qData.totalAssets = val;
-                  else if (key.includes("자본총계") || key.includes("자기자본")) qData.totalEquity = val;
-                  else if (key.includes("유동자산")) qData.currentAssets = val;
-                  else if (key.includes("당좌자산")) qData.quickAssets = val;
+                  else if (key.includes("영업이익") && !key.includes("증가율") && !key.includes("이익률")) qData.operatingProfit = val;
+                  else if (key.includes("당기순이익") && !key.includes("이익률")) qData.netIncome = val;
+                  else if (key.includes("자산총계") && !key.includes("이익률")) qData.totalAssets = val;
+                  else if ((key.includes("자본총계") || key.includes("자기자본")) && !key.includes("이익률") && !key.includes("ROE")) qData.totalEquity = val;
+                  else if (key.includes("유동자산") && !key.includes("비율")) qData.currentAssets = val;
+                  else if (key.includes("당좌자산") && !key.includes("비율")) qData.quickAssets = val;
                   else if (key.includes("재고자산") && !key.includes("회전")) qData.inventory = val;
                   else if (key.includes("매출채권") && !key.includes("회전")) qData.receivables = val;
-                  else if (key.includes("유동부채") || key.includes("부채총계")) qData.currentLiabilities = val;
+                  else if ((key.includes("유동부채") || key.includes("부채총계")) && !key.includes("비율")) qData.currentLiabilities = val;
                   else if (key.includes("한국판매량")) qData.krSales = val;
                   else if (key.includes("미국판매량")) qData.usSales = val;
                   else if (key.includes("중국판매량")) qData.cnSales = val;
-                  else if (key.includes("총판매량") || key === "판매량") qData.salesVolume = val;
+                  else if ((key.includes("총판매량") || key === "판매량") && !key.includes("한국") && !key.includes("미국") && !key.includes("중국")) qData.salesVolume = val;
                 });
 
                 if (hasValidData) parsedQuarters.push(qData);
