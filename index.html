@@ -429,7 +429,45 @@
             };
 
             // ==========================================
-            // 🛠️ 애플리케이션 화면 통합 렌더러
+            // 🧮 투자 안분석 수식 (NPV / IRR - 이분법 전환하여 에러 완벽 해결)
+            // ==========================================
+            const calcNPV = (initial, cashflows, rate) => {
+              const r = rate / 100;
+              let npv = initial;
+              for (let t = 0; t < cashflows.length; t++) {
+                npv += cashflows[t] / Math.pow(1 + r, t + 1);
+              }
+              return npv;
+            };
+
+            const calcIRR = (initial, cashflows) => {
+              let low = -0.99;
+              let high = 5.0; // 최대 500% 내부수익률 범위 타겟
+              let npv = 0;
+              
+              // 이분법(Bisection) 검색을 통한 NaN 방지 안정성 극대화 구조
+              for (let i = 0; i < 100; i++) {
+                let mid = (low + high) / 2;
+                npv = initial;
+                for (let t = 0; t < cashflows.length; t++) {
+                  npv += cashflows[t] / Math.pow(1 + mid, t + 1);
+                }
+                
+                if (Math.abs(npv) < 1e-4) {
+                  return mid * 100;
+                }
+                
+                if (npv > 0) {
+                  low = mid;
+                } else {
+                  high = mid;
+                }
+              }
+              return ((low + high) / 2) * 100;
+            };
+
+            // ==========================================
+            // 🛠 Honor 7-Quarter 렌더러
             // ==========================================
             const renderApp = () => {
                 // 1. 계산 레이어 구동
@@ -484,7 +522,6 @@
 
                         const colDiv = document.createElement("div");
                         colDiv.className = "flex-1 flex flex-col items-center h-full justify-end relative group z-10";
-                        // React 스타일인 중괄호 style={{}} 대신 바닐라 인라인 문자열 스타일 형식을 명확히 준수
                         colDiv.innerHTML = `
                             <div class="absolute bottom-full mb-3 bg-slate-800 text-white text-xs p-3 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none w-36">
                               <div class="font-bold mb-1 border-b border-slate-600 pb-1">${q.name}</div>
@@ -618,6 +655,8 @@
                     INITIAL_INVESTMENTS.forEach(inv => {
                         const npv = calcNPV(inv.initial, inv.cf, discountRate);
                         const irr = calcIRR(inv.initial, inv.cf);
+                        // 에러 방어 처리 탑재 (NaN 또는 무한대 판별 시 N/A 처리)
+                        const displayIrr = isNaN(irr) || !isFinite(irr) ? "N/A" : `${irr.toFixed(2)}%`;
 
                         const tr = document.createElement("tr");
                         tr.className = "hover:bg-slate-50/50 transition-colors";
@@ -626,7 +665,7 @@
                           <td class="py-4 px-4 text-right font-mono text-rose-600 font-semibold">${formatRaw(inv.initial)}원</td>
                           ${inv.cf.map(cash => `<td class="py-4 px-4 text-right font-mono text-slate-600 font-medium">+${formatRaw(cash)}원</td>`).join('')}
                           <td class="py-4 px-4 text-right font-mono font-bold bg-blue-50 text-blue-700 border-l border-blue-100">${formatRaw(Math.round(npv))}원</td>
-                          <td class="py-4 px-4 text-right font-mono font-bold bg-indigo-50 text-indigo-700 border-l border-indigo-100">${irr.toFixed(2)}%</td>
+                          <td class="py-4 px-4 text-right font-mono font-bold bg-indigo-50 text-indigo-700 border-l border-indigo-100">${displayIrr}</td>
                           <td class="py-4 px-4 text-center">
                             <span class="px-2.5 py-1 rounded-full text-xs font-black ${npv >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">
                               ${npv >= 0 ? '투자 적격 (Accept)' : '투자 기각 (Reject)'}
