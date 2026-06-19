@@ -17,7 +17,7 @@
         const { useState, useEffect, useMemo } = React;
 
         // ==========================================
-        // 🚀 Gemini API Key 설정 (보안을 위해 제거됨)
+        // 🚀 Gemini API Key 설정 (보안 제거)
         // ==========================================
         const apiKey = ""; 
 
@@ -238,13 +238,10 @@
             return guess * 100;
           };
 
-          const bepVolume = useMemo(() => {
-            const unitMargin = price - variableCost;
-            if (unitMargin <= 0) return Infinity;
-            return Math.ceil(fixedCost / unitMargin);
-          }, [price, variableCost, fixedCost]);
-
-          const simulatedProfit = (price - variableCost) * targetVolume - fixedCost;
+          // Vercel 호환성을 위해 변수 호이스팅 스코프 에러 완벽 해결
+          const unitMargin = price - variableCost;
+          const bepVolume = unitMargin <= 0 ? 99999999 : Math.ceil(fixedCost / unitMargin);
+          const simulatedProfit = unitMargin * targetVolume - fixedCost;
 
           const handleGenerateSummaryAI = async () => {
             setIsAiSummaryLoading(true);
@@ -588,7 +585,7 @@
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 my-4">
                         <div className="bg-slate-50 border border-slate-200 p-5 rounded-lg text-center">
                           <div className="text-xs text-slate-500 font-bold">계산된 손익분기점 (BEP 판매량)</div>
-                          <div className="text-3xl font-black text-slate-900 mt-2">{bepVolume === Infinity ? '계산 불가능' : `${formatRaw(bepVolume)} 대`}</div>
+                          <div className="text-3xl font-black text-slate-900 mt-2">{bepVolume === 99999999 ? '계산 불가능' : `${formatRaw(bepVolume)} 대`}</div>
                           <p className="text-xs text-slate-400 font-medium mt-1">단위당 공헌이익: {formatRaw(price - variableCost)}원</p>
                         </div>
                         <div className={`border p-5 rounded-lg text-center ${simulatedProfit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
@@ -603,11 +600,11 @@
                         <div className="relative pt-2 pb-6">
                           <div className="h-4 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner relative">
                             <div style={{ width: `${Math.min((targetVolume / 250000) * 100, 100)}%` }} className={`h-full transition-all duration-500 ${targetVolume >= bepVolume ? 'bg-emerald-500' : 'bg-amber-400'}`}></div>
-                            {bepVolume !== Infinity && bepVolume < 250000 && (<div style={{ left: `${(bepVolume / 250000) * 100}%` }} className="absolute top-0 bottom-0 w-1.5 bg-rose-500 shadow-md"></div>)}
+                            {bepVolume !== 99999999 && bepVolume < 250000 && (<div style={{ left: `${(bepVolume / 250000) * 100}%` }} className="absolute top-0 bottom-0 w-1.5 bg-rose-500 shadow-md"></div>)}
                           </div>
                           <div className="absolute top-12 w-full flex justify-between text-xs font-bold text-slate-500">
                             <span>0 대</span>
-                            {bepVolume !== Infinity && bepVolume < 250000 && (<span className="text-rose-600 absolute" style={{ left: `calc(${(bepVolume / 250000) * 100}% - 20px)` }}>BEP 선</span>)}
+                            {bepVolume !== 99999999 && bepVolume < 250000 && (<span className="text-rose-600 absolute" style={{ left: `calc(${(bepVolume / 250000) * 100}% - 20px)` }}>BEP 선</span>)}
                             <span className="text-emerald-600 absolute right-0 text-right">목표치: {targetVolume.toLocaleString()} 대</span>
                           </div>
                         </div>
