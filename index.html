@@ -8,6 +8,12 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        .tab-active {
+            border-bottom: 3px solid #1d4ed8 !important;
+            color: #1d4ed8 !important;
+        }
+    </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans antialiased text-sm">
     <div id="app">
@@ -248,7 +254,7 @@
         </main>
     </div>
 
-    <!-- 비즈니스 로직 연동 스크립트 -->
+    <!-- 비즈니스 로직 연동 스크립트 (바벨과 리액트 라이브러리 간섭 없이 순수 바닐라 구동) -->
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             // ==========================================
@@ -261,7 +267,7 @@
               { name: "4차 3Q", sales: 143574593837, operatingProfit: 17965346853, netIncome: 17935206853, totalAssets: 104478689207, totalEquity: 104478689207, currentAssets: 97478689207, quickAssets: 63663946684, inventory: 33814742523, receivables: 57429837535, currentLiabilities: 0, krSales: 74765, usSales: 32358, cnSales: 72709, salesVolume: 179832, ads: 10526300000, promo: 3990795600, logistics: 8028362370, rd: 7000000000, costPerUnit: 422956 },
               { name: "4차 4Q", sales: 184376453347, operatingProfit: 15070922124, netIncome: 15075846124, totalAssets: 119554535331, totalEquity: 119554535331, currentAssets: 113554535331, quickAssets: 104065840311, inventory: 9488695020, receivables: 73750581339, currentLiabilities: 0, krSales: 72709, usSales: 73824, cnSales: 38062, salesVolume: 184595, ads: 15835000000, promo: 5137080800, logistics: 6441144000, rd: 7700000000, costPerUnit: 438500 },
               { name: "5차 1Q", sales: 164497500392, operatingProfit: 24091689948, netIncome: 20150784448, totalAssets: 143405319779, totalEquity: 143405319779, currentAssets: 112505319779, quickAssets: 96559852943, inventory: 15945466836, receivables: 65799000157, currentLiabilities: 0, krSales: 77420, usSales: 34409, cnSales: 54225, salesVolume: 166054, ads: 15234000000, promo: 6502367200, logistics: 5556964830, rd: 7700000000, costPerUnit: 472178 },
-              { name: "5차 2Q", sales: 220841570000, operatingProfit: 59355655848, netIncome: 55431433348, totalAssets: 197728124460, totalEquity: 197728124460, currentAssets: 167828124460, quickAssets: 137894598011, inventory: 29933526449, receivables: 88336628000, currentLiabilities: 0, krSales: 118623, usSales: 40000, cnSales: 58443, salesVolume: 217066, ads: 17081500000, promo: 9370337000, logistics: 7567761520, rd: 10000, costPerUnit: 388929 }
+              { name: "5차 2Q", sales: 220841570000, operatingProfit: 59355655848, netIncome: 55431433348, totalAssets: 197728124460, totalEquity: 197728124460, currentAssets: 167828124460, quickAssets: 137894598011, inventory: 29933526449, receivables: 88336628000, currentLiabilities: 0, krSales: 118623, usSales: 40000, cnSales: 58443, salesVolume: 217066, ads: 17081500000, promo: 9370337000, logistics: 7567761520, rd: 7700000000, costPerUnit: 388929 }
             ];
 
             const INITIAL_INVESTMENTS = [
