@@ -169,7 +169,7 @@
                       <thead>
                         <tr class="border-b border-slate-200">
                           <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700">검토 제안 투자안</th>
-                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">초기 투자 지출</th>
+                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">초기 투자 지출 (직접 입력 가능)</th>
                           <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">1차년도 현금유입</th>
                           <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">2차년도 현금유입</th>
                           <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">3차년도 현금유입</th>
@@ -183,6 +183,30 @@
                           <!-- NPV / IRR 데이터 행 -->
                       </tbody>
                     </table>
+                  </div>
+
+                  <!-- 자본예산 핵심 이론 설명 카드 부록 -->
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-blue-50/50 border border-blue-100 p-6 rounded-xl shadow-inner mt-6">
+                      <div class="space-y-2">
+                          <h4 class="font-bold text-blue-900 flex items-center gap-2">
+                              <i class="fa-solid fa-calculator"></i>
+                              순현재가치 (NPV, Net Present Value) 란?
+                          </h4>
+                          <p class="text-xs text-slate-600 leading-relaxed">
+                              투자로부터 발생하는 미래의 모든 세후 현금유입액을 기업의 요구수익률(WACC 등)로 할인하여 현재가치로 환산한 뒤, 초기 투자지출액을 차감한 값입니다. 
+                              <strong class="text-blue-800">NPV가 0보다 크거나 같으면 ($NPV \ge 0$) 투자 타당성이 존재</strong>하는 것으로 판단하며, 주주 가치를 극대화하는 가장 신뢰도 높은 자본예산 의사결정 기준입니다.
+                          </p>
+                      </div>
+                      <div class="space-y-2">
+                          <h4 class="font-bold text-indigo-900 flex items-center gap-2">
+                              <i class="fa-solid fa-chart-line"></i>
+                              내부수익률 (IRR, Internal Rate of Return) 이란?
+                          </h4>
+                          <p class="text-xs text-slate-600 leading-relaxed">
+                              투자안의 순현재가치(NPV)를 정확히 0원으로 만드는 할인율을 의미합니다. 즉, 투자 사업 자체의 기대 수익률입니다. 
+                              <strong class="text-indigo-800">내부수익률이 기업의 요구수익률(WACC)보다 크거나 같으면 ($IRR \ge WACC$) 투자안을 채택</strong>합니다. 이분법 수렴 알고리즘을 적용하여 안정적으로 수율을 계산합니다.
+                          </p>
+                      </div>
                   </div>
                 </div>
             </div>
@@ -282,6 +306,9 @@
             let quarters = JSON.parse(JSON.stringify(DEMO_QUARTERS));
             let selectedQIdx = quarters.length - 1;
             let discountRate = 3.0;
+
+            // 가변식 투자지출 제어 어레이 선언 (실시간 사용자 입력값 보존용)
+            let investments = JSON.parse(JSON.stringify(INITIAL_INVESTMENTS));
 
             // What-If 시나리오 제어 값
             let price = 700000;
@@ -647,12 +674,12 @@
                     table.innerHTML = tableHTML;
                 }
 
-                // 6. 투자 심의 의사결정 탭 렌더링
+                // 6. 투자 심의 의사결정 탭 렌더링 (가변 investments 데이터 기준 및 직접 입력 인풋 연결)
                 if (activeTab === "decisions") {
                     const tbody = document.getElementById("investments-table-body");
                     tbody.innerHTML = "";
 
-                    INITIAL_INVESTMENTS.forEach(inv => {
+                    investments.forEach(inv => {
                         const npv = calcNPV(inv.initial, inv.cf, discountRate);
                         const irr = calcIRR(inv.initial, inv.cf);
                         // 에러 방어 처리 탑재 (NaN 또는 무한대 판별 시 N/A 처리)
@@ -662,11 +689,17 @@
                         tr.className = "hover:bg-slate-50/50 transition-colors";
                         tr.innerHTML = `
                           <td class="py-4 px-4 font-bold text-slate-800">${inv.title}</td>
-                          <td class="py-4 px-4 text-right font-mono text-rose-600 font-semibold">${formatRaw(inv.initial)}원</td>
+                          <td class="py-4 px-4 text-right">
+                            <div class="flex items-center justify-end gap-1">
+                              <span class="text-rose-600 font-bold font-mono">-</span>
+                              <input type="number" data-id="${inv.id}" value="${Math.abs(inv.initial)}" class="proj-initial-input w-28 bg-white border border-slate-300 text-right rounded py-1 px-2 text-xs font-semibold font-mono text-rose-600 focus:ring-2 focus:ring-blue-500" placeholder="0" />
+                              <span class="text-slate-500 font-bold text-xs">원</span>
+                            </div>
+                          </td>
                           ${inv.cf.map(cash => `<td class="py-4 px-4 text-right font-mono text-slate-600 font-medium">+${formatRaw(cash)}원</td>`).join('')}
-                          <td class="py-4 px-4 text-right font-mono font-bold bg-blue-50 text-blue-700 border-l border-blue-100">${formatRaw(Math.round(npv))}원</td>
-                          <td class="py-4 px-4 text-right font-mono font-bold bg-indigo-50 text-indigo-700 border-l border-indigo-100">${displayIrr}</td>
-                          <td class="py-4 px-4 text-center">
+                          <td class="py-4 px-4 text-right font-mono font-bold bg-blue-50 text-blue-700 border-l border-blue-100" id="npv-${inv.id}">${formatRaw(Math.round(npv))}원</td>
+                          <td class="py-4 px-4 text-right font-mono font-bold bg-indigo-50 text-indigo-700 border-l border-indigo-100" id="irr-${inv.id}">${displayIrr}</td>
+                          <td class="py-4 px-4 text-center" id="decision-${inv.id}">
                             <span class="px-2.5 py-1 rounded-full text-xs font-black ${npv >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">
                               ${npv >= 0 ? '투자 적격 (Accept)' : '투자 기각 (Reject)'}
                             </span>
@@ -754,6 +787,7 @@
             // (3) 자본비용(WACC) 변경 이벤트
             document.getElementById("wacc-input").addEventListener("input", (e) => {
                 discountRate = parseFloat(e.target.value) || 0;
+                // WACC 변경 시 가변 지출 어레이를 보존한 채로 전체 수치 업데이트
                 renderApp();
             });
 
@@ -798,6 +832,34 @@
 
             // (6) 동기화 강제 새로고침
             document.getElementById("btn-sync").addEventListener("click", fetchGoogleSheetData);
+
+            // (7) 초기 투자지출 변경 이벤트 위임 (부분 실시간 갱신 처리로 커서 강제 포커스 아웃 예방)
+            document.getElementById("investments-table-body").addEventListener("input", (e) => {
+                if (e.target.classList.contains("proj-initial-input")) {
+                    const projId = e.target.getAttribute("data-id");
+                    const val = parseFloat(e.target.value) || 0;
+                    const targetProj = investments.find(p => p.id === projId);
+                    if (targetProj) {
+                        // 실제 차감 계산을 위해 초기 지출 값을 음수로 저장
+                        targetProj.initial = -Math.abs(val);
+                        
+                        // 전체 리렌더링 없이 해당 행의 타겟 노드(NPV, IRR, 의사결정)만 실시간 즉각 변경
+                        const npv = calcNPV(targetProj.initial, targetProj.cf, discountRate);
+                        const irr = calcIRR(targetProj.initial, targetProj.cf);
+                        const displayIrr = isNaN(irr) || !isFinite(irr) ? "N/A" : `${irr.toFixed(2)}%`;
+                        
+                        document.getElementById(`npv-${projId}`).textContent = `${formatRaw(Math.round(npv))}원`;
+                        document.getElementById(`irr-${projId}`).textContent = displayIrr;
+                        
+                        const decisionEl = document.getElementById(`decision-${projId}`);
+                        decisionEl.innerHTML = `
+                          <span class="px-2.5 py-1 rounded-full text-xs font-black ${npv >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">
+                            ${npv >= 0 ? '투자 적격 (Accept)' : '투자 기각 (Reject)'}
+                          </span>
+                        `;
+                    }
+                }
+            });
 
             // 초기 데이터 연동 세션 로드 실행
             fetchGoogleSheetData();
