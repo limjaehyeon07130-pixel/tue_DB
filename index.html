@@ -4,769 +4,531 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>임재현 팀 경영 성과 대시보드</title>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <style>
-        .tab-active {
-            border-bottom: 3px solid #1d4ed8 !important;
-            color: #1d4ed8 !important;
-        }
-    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></link>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans antialiased text-sm">
-    <div id="app">
-        <!-- 상단 네비게이션 헤더 -->
-        <header class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
-            <div class="max-w-[1400px] mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
-                <div class="flex items-center gap-3">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // 구글 스프레드시트 주소 고정
+        const SPREADSHEET_ID = "1WMTK2Or9K_HzgGlhKzkSDK41G8J_Q4s4ORV1LS83nsc";
+
+        // 5차 2Q 원본 리얼 스냅샷 데이터 완비 (네트워크 에러 시 완벽 백업용)
+        const DEFAULT_DATA = [
+          { name: "3차 4Q", sales: 88631620000, operatingProfit: 5069504571, netIncome: 4119883657, totalAssets: 74315106254, totalEquity: 74315106254, currentAssets: 64315106254, quickAssets: 56723088633, inventory: 7836734071, receivables: 35452648000, currentLiabilities: 0, krSales: 54225, usSales: 34409, cnSales: 55000, salesVolume: 143634, ads: 7390000000, promo: 2253750000, logistics: 3460800000, rd: 5000000000, costPerUnit: 361523 },
+          { name: "4차 1Q", sales: 95061638854, operatingProfit: 5020140115, netIncome: 4990640115, totalAssets: 79156027165, totalEquity: 79156027165, currentAssets: 70156027165, quickAssets: 59671196909, inventory: 10484830256, receivables: 38024655541, currentLiabilities: 0, krSales: 57034, usSales: 32204, cnSales: 39491, salesVolume: 128729, ads: 8751360000, promo: 2881846000, logistics: 3962425280, rd: 6000000000, costPerUnit: 391268 },
+          { name: "4차 2Q", sales: 120027616700, operatingProfit: 6773813322, netIncome: 6723313322, totalAssets: 85812107354, totalEquity: 85812107354, currentAssets: 77812107354, quickAssets: 52150361487, inventory: 25661745867, receivables: 48011046680, currentLiabilities: 0, krSales: 50758, usSales: 34945, cnSales: 55000, salesVolume: 140703, ads: 8103220000, promo: 3252304000, logistics: 5200870620, rd: 6480000000, costPerUnit: 409337 },
+          { name: "4차 3Q", sales: 143574593837, operatingProfit: 17965346853, netIncome: 17935206853, totalAssets: 104478689207, totalEquity: 104478689207, currentAssets: 97478689207, quickAssets: 63663946684, inventory: 33814742523, receivables: 57429837535, currentLiabilities: 0, krSales: 74765, usSales: 32358, cnSales: 72709, salesVolume: 179832, ads: 10526300000, promo: 3990795600, logistics: 8028362370, rd: 7000000000, costPerUnit: 422956 },
+          { name: "4차 4Q", sales: 184376453347, operatingProfit: 15070922124, netIncome: 15075846124, totalAssets: 119554535331, totalEquity: 119554535331, currentAssets: 113554535331, quickAssets: 104065840311, inventory: 9488695020, receivables: 73750581339, currentLiabilities: 0, krSales: 72709, usSales: 73824, cnSales: 38062, salesVolume: 184595, ads: 15835000000, promo: 5137080800, logistics: 6441144000, rd: 7700000000, costPerUnit: 438500 },
+          { name: "5차 1Q", sales: 164497500392, operatingProfit: 24091689948, netIncome: 20150784448, totalAssets: 143405319779, totalEquity: 143405319779, currentAssets: 112505319779, quickAssets: 96559852943, inventory: 15945466836, receivables: 65799000157, currentLiabilities: 0, krSales: 77420, usSales: 34409, cnSales: 54225, salesVolume: 166054, ads: 15234000000, promo: 6502367200, logistics: 5556964830, rd: 7700000000, costPerUnit: 472178 },
+          { name: "5차 2Q", sales: 220841570000, operatingProfit: 59355655848, netIncome: 55431433348, totalAssets: 197728124460, totalEquity: 197728124460, currentAssets: 167828124460, quickAssets: 137894598011, inventory: 29933526449, receivables: 88336628000, currentLiabilities: 0, krSales: 118623, usSales: 40000, cnSales: 58443, salesVolume: 217066, ads: 17081500000, promo: 9370337000, logistics: 7567761520, rd: 10000, costPerUnit: 388929 }
+        ];
+
+        // 수식 헬퍼 함수
+        const formatMoney = (val) => {
+          if (val === undefined || val === null || isNaN(val)) return "0원";
+          return Math.floor(val).toLocaleString() + " 원";
+        };
+
+        const formatPercent = (val) => {
+          if (val === undefined || val === null || isNaN(val)) return "0.00%";
+          return val.toFixed(2) + "%";
+        };
+
+        function App() {
+          const [activeTab, setActiveTab] = useState("summary");
+          const [quarters, setQuarters] = useState(DEFAULT_DATA);
+          const [selectedIdx, setSelectedIdx] = useState(DEFAULT_DATA.length - 1);
+          const [syncStatus, setSyncStatus] = useState("offline"); // offline, loading, success, error
+          const [wacc, setWacc] = useState(3.0);
+
+          // What-If 시뮬레이터 수치 관리
+          const [price, setPrice] = useState(700000);
+          const [vcost, setVcost] = useState(420000);
+          const [fcost, setFcost] = useState(30000000000);
+          const [volume, setVolume] = useState(150000);
+
+          // 구글 시트 파싱 및 가져오기 로직
+          const loadSheetData = async () => {
+            setSyncStatus("loading");
+            try {
+              const res = await fetch(`https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv`);
+              if (!res.ok) throw new Error("네트워크 오류");
+              const text = await res.text();
+              
+              // CSV 줄 단위 분리
+              const rows = text.split("\n").map(row => row.split(","));
+              
+              // 분기 타이틀 정보 추출 (1행 기준 검색)
+              const header = rows[0] || [];
+              const parsedQuarters = [];
+
+              for (let col = 1; col < header.length; col++) {
+                const qName = header[col]?.trim().replace(/"/g, "");
+                if (!qName || qName.includes("예정")) continue;
+
+                let qObj = { name: qName, sales: 0, operatingProfit: 0, netIncome: 0, totalAssets: 0, totalEquity: 0, currentAssets: 0, quickAssets: 0, inventory: 0, receivables: 0, currentLiabilities: 0, krSales: 0, usSales: 0, cnSales: 0, salesVolume: 0, ads: 0, promo: 0, logistics: 0, rd: 0, costPerUnit: 0 };
+                
+                rows.forEach(row => {
+                  if (!row[0]) return;
+                  const key = row[0].replace(/\s+/g, "").replace(/"/g, "");
+                  const valStr = row[col] ? row[col].replace(/[^0-9.-]/g, "") : "0";
+                  const val = parseFloat(valStr) || 0;
+
+                  if (key.includes("매출액") && !key.includes("증가")) qObj.sales = val;
+                  else if (key.includes("영업이익") && !key.includes("률")) qObj.operatingProfit = val;
+                  else if (key.includes("당기순이익")) qObj.netIncome = val;
+                  else if (key.includes("자산총계")) qObj.totalAssets = val;
+                  else if (key.includes("자본총계") || key.includes("자기자본")) qObj.totalEquity = val;
+                  else if (key.includes("유동자산")) qObj.currentAssets = val;
+                  else if (key.includes("당좌자산")) qObj.quickAssets = val;
+                  else if (key.includes("재고자산")) qObj.inventory = val;
+                  else if (key.includes("매출채권")) qObj.receivables = val;
+                  else if (key.includes("유동부채")) qObj.currentLiabilities = val;
+                  else if (key.includes("한국판매량")) qObj.krSales = val;
+                  else if (key.includes("미국판매량")) qObj.usSales = val;
+                  else if (key.includes("중국판매량")) qObj.cnSales = val;
+                  else if (key.includes("총판매량") || key === "판매량") qObj.salesVolume = val;
+                  else if (key.includes("광고비")) qObj.ads = val;
+                  else if (key.includes("판매촉진")) qObj.promo = val;
+                  else if (key.includes("물류비")) qObj.logistics = val;
+                  else if (key.includes("연구개발")) qObj.rd = val;
+                  else if (key.includes("제조원가")) qObj.costPerUnit = val;
+                });
+
+                if (qObj.sales > 0) {
+                  parsedQuarters.push(qObj);
+                }
+              }
+
+              if (parsedQuarters.length > 0) {
+                setQuarters(parsedQuarters);
+                setSelectedIdx(parsedQuarters.length - 1);
+                setSyncStatus("success");
+              } else {
+                throw new Error("데이터 파싱 실패");
+              }
+            } catch (err) {
+              console.error("스프레드시트 로드 실패, 캐시 데이터 보존:", err);
+              setQuarters(DEFAULT_DATA);
+              setSyncStatus("error");
+            }
+          };
+
+          useEffect(() => {
+            loadSheetData();
+          }, []);
+
+          // 전후기 증감 및 분석 가공 데이터 연산
+          const processedQuarters = useMemo(() => {
+            return quarters.map((q, idx) => {
+              const prev = idx > 0 ? quarters[idx - 1] : null;
+              const salesGrowth = prev ? ((q.sales - prev.sales) / prev.sales) * 100 : 0;
+              const opGrowth = prev ? ((q.operatingProfit - prev.operatingProfit) / prev.operatingProfit) * 100 : 0;
+              
+              const currentRatio = q.currentLiabilities > 0 ? (q.currentAssets / q.currentLiabilities) * 100 : 0;
+              const quickRatio = q.currentLiabilities > 0 ? (q.quickAssets / q.currentLiabilities) * 100 : 0;
+              const roe = q.totalEquity > 0 ? (q.netIncome / q.totalEquity) * 100 : 0;
+              const roa = q.totalAssets > 0 ? (q.netIncome / q.totalAssets) * 100 : 0;
+
+              return { ...q, salesGrowth, opGrowth, currentRatio, quickRatio, roe, roa };
+            });
+          }, [quarters]);
+
+          const activeQ = processedQuarters[selectedIdx] || processedQuarters[processedQuarters.length - 1];
+
+          // 자본예산 수식 처리 (NPV / IRR)
+          const investmentProjects = [
+            { id: "patent", title: "신공정 특허 인수", initial: -2000000000, cf: [800000000, 900000000, 1000000000, 1200000000] },
+            { id: "mna", title: "유통채널 M&A", initial: -5000000000, cf: [1500000000, 1800000000, 2200000000, 2500000000] },
+            { id: "expansion", title: "신공장 설비 증설", initial: -10000000000, cf: [2500000000, 3500000000, 4500000000, 5500000000] }
+          ];
+
+          const calcNPV = (initial, cfs, rate) => {
+            let r = rate / 100;
+            let sum = initial;
+            cfs.forEach((cf, i) => {
+              sum += cf / Math.pow(1 + r, i + 1);
+            });
+            return sum;
+          };
+
+          const calcIRR = (initial, cfs) => {
+            let guess = 0.1;
+            for (let i = 0; i < 100; i++) {
+              let npv = initial;
+              let dNpv = 0;
+              cfs.forEach((cf, t) => {
+                npv += cf / Math.pow(1 + guess, t + 1);
+                dNpv -= ((t + 1) * cf) / Math.pow(1 + guess, t + 2);
+              });
+              let next = guess - npv / dNpv;
+              if (Math.abs(next - guess) < 1e-6) return next * 100;
+              guess = next;
+            }
+            return guess * 100;
+          };
+
+          // 시뮬레이터 변수 세팅 기능
+          const applyActualMetrics = () => {
+            if (!activeQ) return;
+            const avgPrice = activeQ.salesVolume > 0 ? Math.round(activeQ.sales / activeQ.salesVolume) : 700000;
+            setPrice(avgPrice);
+            setVcost(activeQ.costPerUnit || 420000);
+            const sumFixed = (activeQ.ads || 0) + (activeQ.promo || 0) + (activeQ.logistics || 0) + (activeQ.rd || 0);
+            setFcost(sumFixed > 0 ? sumFixed : 30000000000);
+            setVolume(activeQ.salesVolume || 150000);
+          };
+
+          const cm = price - vcost; // 단위당 공헌이익
+          const bepVolume = cm > 0 ? Math.ceil(fcost / cm) : 0;
+          const simOp = (cm * volume) - fcost;
+
+          return (
+            <div className="min-h-screen flex flex-col">
+              {/* 네비게이션 상단 바 */}
+              <header class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+                <div class="max-w-[1400px] mx-auto px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+                  <div class="flex items-center gap-3">
                     <div class="w-10 h-10 bg-blue-700 rounded-lg flex items-center justify-center text-white font-black text-xl shadow-md">JE</div>
                     <div>
-                        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">임재현 팀</h1>
-                        <p class="text-xs text-slate-500 font-medium mt-0.5">Investor Relations & Executive Dashboard</p>
-                    </div>
-                </div>
-
-                <div class="flex items-center gap-4">
-                    <div id="sync-status" class="flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-semibold bg-amber-50 border-amber-200 text-amber-700">
-                        <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                        <span id="sync-text">오프라인 데이터 연결됨</span>
-                    </div>
-                    <button id="btn-sync" class="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-md text-xs font-bold transition-colors shadow-sm flex items-center gap-2">
-                        <i class="fa-solid fa-rotate-right" id="sync-icon"></i>
-                        동기화 갱신
-                    </button>
-                </div>
-            </div>
-
-            <div class="max-w-[1400px] mx-auto px-6 flex gap-8 overflow-x-auto" id="tab-headers">
-                <button data-tab="summary" class="tab-btn py-4 text-sm font-bold border-b-[3px] transition-colors outline-none whitespace-nowrap border-blue-600 text-blue-700">종합 성과 대시보드</button>
-                <button data-tab="financials" class="tab-btn py-4 text-sm font-bold border-b-[3px] transition-colors outline-none whitespace-nowrap border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300">상세 재무제표 및 분석비율</button>
-                <button data-tab="decisions" class="tab-btn py-4 text-sm font-bold border-b-[3px] transition-colors outline-none whitespace-nowrap border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300">자본예산 의사결정 (NPV/IRR)</button>
-                <button data-tab="whatif" class="tab-btn py-4 text-sm font-bold border-b-[3px] transition-colors outline-none whitespace-nowrap border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300">시뮬레이터 (What-If)</button>
-            </div>
-        </header>
-
-        <main class="max-w-[1400px] mx-auto p-6 space-y-8 mt-4">
-            <!-- 시트 오류 메시지 알림존 -->
-            <div id="error-banner" class="hidden bg-amber-50 text-amber-700 border border-amber-200 p-4 rounded-xl text-sm font-bold flex items-center gap-3">
-                <i class="fa-solid fa-circle-info text-amber-500"></i>
-                <span id="error-text"></span>
-            </div>
-
-            <!-- 핵심 요약 지표 카드 -->
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-                <div class="bg-white border border-slate-200 p-6 rounded-xl shadow-sm relative overflow-hidden">
-                    <div class="absolute top-0 left-0 w-1 h-full bg-blue-600"></div>
-                    <div class="text-sm font-semibold text-slate-500">당기 매출액 (<span class="q-name-label">5차 2Q</span>)</div>
-                    <div class="text-3xl font-black text-slate-900 mt-2" id="kpi-sales">0원</div>
-                    <div class="mt-3 flex items-center gap-2">
-                      <span id="kpi-sales-growth" class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-700">▲ 0.0%</span>
-                      <span class="text-xs text-slate-400 font-medium">vs 전기 대비</span>
-                    </div>
-                </div>
-
-                <div class="bg-white border border-slate-200 p-6 rounded-xl shadow-sm relative overflow-hidden">
-                    <div class="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
-                    <div class="text-sm font-semibold text-slate-500">영업이익 (<span class="q-name-label">5차 2Q</span>)</div>
-                    <div class="text-3xl font-black text-slate-900 mt-2" id="kpi-profit">0원</div>
-                    <div class="mt-3 flex items-center gap-2">
-                      <span id="kpi-profit-growth" class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-700">▲ 0.0%</span>
-                      <span class="text-xs text-slate-400 font-medium">vs 전기 대비</span>
-                    </div>
-                </div>
-
-                <div class="bg-white border border-slate-200 p-6 rounded-xl shadow-sm relative overflow-hidden">
-                    <div class="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
-                    <div class="text-sm font-semibold text-slate-500">자기자본이익률 (ROE)</div>
-                    <div class="text-3xl font-black text-slate-900 mt-2" id="kpi-roe">0.00%</div>
-                    <div class="mt-3 text-xs text-slate-400 font-medium">주주자본 대비 당기순이익 가치</div>
-                </div>
-
-                <div class="bg-white border border-slate-200 p-6 rounded-xl shadow-sm relative overflow-hidden">
-                    <div class="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
-                    <div class="text-sm font-semibold text-slate-500">당좌비율 (Quick Ratio)</div>
-                    <div class="text-3xl font-black text-slate-900 mt-2" id="kpi-quick">무부채</div>
-                    <div class="mt-3 text-xs text-slate-400 font-medium">유동부채 대비 신속 지불 여력</div>
-                </div>
-            </div>
-
-            <!-- 탭 콘텐츠 구획 -->
-            <div id="tab-summary" class="tab-content space-y-6">
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <!-- 매출 / 이익 차트 -->
-                    <div class="lg:col-span-2 bg-white border border-slate-200 p-6 rounded-xl shadow-sm flex flex-col justify-between">
-                        <div class="border-b border-slate-100 pb-4 mb-6 flex justify-between items-center">
-                          <h2 class="font-bold text-slate-800 text-lg">경영 실적 성장 추이 (매출 및 이익)</h2>
-                          <span class="text-xs text-slate-500 font-semibold bg-slate-100 px-2 py-1 rounded">단위: 억 원</span>
-                        </div>
-                        <div class="h-80 flex items-end gap-3 sm:gap-6 border-b border-slate-200 pb-2 relative px-4" id="chart-container">
-                            <!-- JS를 통해 동적 생성 -->
-                        </div>
-                        <div class="flex justify-center mt-6 gap-6 text-sm font-semibold text-slate-600">
-                          <div class="flex items-center gap-2"><span class="w-3.5 h-3.5 bg-blue-600 rounded-sm shadow-sm"></span> 매출액</div>
-                          <div class="flex items-center gap-2"><span class="w-3.5 h-3.5 bg-amber-500 rounded-sm shadow-sm"></span> 영업이익</div>
-                        </div>
-                    </div>
-
-                    <!-- 세일즈 비중 분석 -->
-                    <div class="bg-white border border-slate-200 p-6 rounded-xl shadow-sm flex flex-col justify-between">
-                        <div class="border-b border-slate-100 pb-4 mb-6">
-                            <h2 class="font-bold text-slate-800 text-lg">지역별 글로벌 세일즈 포트폴리오</h2>
-                        </div>
-                        <div class="flex-1 flex flex-col justify-center space-y-6">
-                          <div class="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-200">
-                            <span class="text-slate-600 font-semibold text-sm">조회 기준 분기</span>
-                            <select id="quarter-select" class="bg-white border border-slate-300 text-slate-800 text-sm font-bold py-1.5 px-3 rounded-md shadow-sm outline-none focus:ring-2 focus:ring-blue-500">
-                              <!-- JS로 생성 -->
-                            </select>
-                          </div>
-                          <div class="space-y-5" id="geo-distribution-container">
-                              <!-- JS로 생성 -->
-                          </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 탭 2: 상세 재무제표 분석 -->
-            <div id="tab-financials" class="tab-content hidden bg-white border border-slate-200 p-8 rounded-xl shadow-sm">
-                <div class="border-b border-slate-200 pb-4 mb-6 flex justify-between items-end">
-                  <div><h2 class="text-xl font-bold text-slate-900">손익계산서 및 재무상태표 총괄분석</h2></div>
-                  <span class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-md">단위: 원 (KRW) / 비율 (%)</span>
-                </div>
-                <div class="overflow-x-auto pb-4">
-                  <table class="w-full text-left border-collapse min-w-[900px]" id="financials-table">
-                      <!-- JS로 테이블 완전 생성 -->
-                  </table>
-                </div>
-            </div>
-
-            <!-- 탭 3: 자본예산 의사결정 -->
-            <div id="tab-decisions" class="tab-content hidden space-y-6">
-                <div class="bg-white border border-slate-200 p-6 rounded-xl shadow-sm">
-                  <div class="border-b border-slate-100 pb-4 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div>
-                      <h2 class="font-bold text-slate-800 text-lg">투자안 타당성 및 경제성 검토 (Capital Budgeting)</h2>
-                      <p class="text-xs text-slate-500 mt-1">할인현금흐름(DCF) 평가 기법을 통한 실시간 의사결정 시뮬레이터</p>
-                    </div>
-                    <div class="flex items-center gap-3 bg-slate-50 p-2 rounded-lg border border-slate-200">
-                      <span class="text-xs text-slate-600 font-bold whitespace-nowrap">요구수익률 (WACC)</span>
-                      <div class="flex items-center gap-1">
-                        <input id="wacc-input" type="number" step="0.1" value="3.0" class="w-16 bg-white border border-slate-300 text-slate-800 text-center text-sm font-bold py-1 rounded-md outline-none focus:ring-2 focus:ring-blue-500"/>
-                        <span class="text-sm font-bold text-slate-500">%</span>
-                      </div>
+                      <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">임재현 팀 대시보드</h1>
+                      <p class="text-xs text-slate-500 font-medium mt-0.5">Investor Relations Realtime System</p>
                     </div>
                   </div>
 
-                  <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse min-w-[800px]">
+                  <div class="flex items-center gap-4">
+                    <div class={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-semibold ${
+                      syncStatus === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
+                      syncStatus === 'loading' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-amber-50 border-amber-200 text-amber-700'
+                    }`}>
+                      <span class={`w-2 h-2 rounded-full ${syncStatus === 'success' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}></span>
+                      <span>{
+                        syncStatus === 'success' ? '구글 시트 연동 성공' :
+                        syncStatus === 'loading' ? '데이터 갱신 중...' : '오프라인 캐시 보존 작동 중'
+                      }</span>
+                    </div>
+                    <button onClick={loadSheetData} class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-xs font-bold transition-all shadow-sm flex items-center gap-2">
+                      <i class={`fa-solid fa-rotate-right ${syncStatus === 'loading' ? 'fa-spin' : ''}`}></i>
+                      강제 새로고침
+                    </button>
+                  </div>
+                </div>
+
+                {/* 탭 헤더 */}
+                <div class="max-w-[1400px] mx-auto px-6 flex gap-6 overflow-x-auto">
+                  {[
+                    { id: "summary", label: "종합 성과 대시보드" },
+                    { id: "financials", label: "상세 재무 분석표" },
+                    { id: "decisions", label: "자본예산 의사결정 (NPV/IRR)" },
+                    { id: "whatif", label: "민감도 시뮬레이터" }
+                  ].map(tab => (
+                    <button 
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      class={`py-4 text-sm font-bold border-b-[3px] transition-all whitespace-nowrap outline-none ${
+                        activeTab === tab.id ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </header>
+
+              {/* 기본 대시보드 스냅샷 요약 */}
+              <main class="max-w-[1400px] mx-auto p-6 space-y-8 flex-1 w-full">
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                  <div class="bg-white border border-slate-200 p-6 rounded-xl shadow-sm relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-blue-600"></div>
+                    <div class="text-xs font-bold text-slate-500">당기 매출액 ({activeQ?.name})</div>
+                    <div class="text-2xl font-black text-slate-900 mt-1">{formatMoney(activeQ?.sales)}</div>
+                    <div class="mt-2 flex items-center gap-1.5 text-xs">
+                      <span class={`px-1.5 py-0.5 rounded font-bold ${activeQ?.salesGrowth >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                        {activeQ?.salesGrowth >= 0 ? '▲' : '▼'} {Math.abs(activeQ?.salesGrowth || 0).toFixed(1)}%
+                      </span>
+                      <span class="text-slate-400">전기 대비</span>
+                    </div>
+                  </div>
+
+                  <div class="bg-white border border-slate-200 p-6 rounded-xl shadow-sm relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
+                    <div class="text-xs font-bold text-slate-500">영업이익 ({activeQ?.name})</div>
+                    <div class="text-2xl font-black text-slate-900 mt-1">{formatMoney(activeQ?.operatingProfit)}</div>
+                    <div class="mt-2 flex items-center gap-1.5 text-xs">
+                      <span class={`px-1.5 py-0.5 rounded font-bold ${activeQ?.opGrowth >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                        {activeQ?.opGrowth >= 0 ? '▲' : '▼'} {Math.abs(activeQ?.opGrowth || 0).toFixed(1)}%
+                      </span>
+                      <span class="text-slate-400">전기 대비</span>
+                    </div>
+                  </div>
+
+                  <div class="bg-white border border-slate-200 p-6 rounded-xl shadow-sm relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
+                    <div class="text-xs font-bold text-slate-500">자기자본이익률 (ROE)</div>
+                    <div class="text-2xl font-black text-slate-900 mt-1">{formatPercent(activeQ?.roe)}</div>
+                    <div class="text-xs text-slate-400 mt-1 font-medium">자기자본 운용 효율성</div>
+                  </div>
+
+                  <div class="bg-white border border-slate-200 p-6 rounded-xl shadow-sm relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+                    <div class="text-xs font-bold text-slate-500">당좌비율</div>
+                    <div class="text-2xl font-black text-slate-900 mt-1">{activeQ?.currentLiabilities === 0 ? "무부채 단단함" : formatPercent(activeQ?.quickRatio)}</div>
+                    <div class="text-xs text-slate-400 mt-1 font-medium">유동부채 대비 신속 지불 능력</div>
+                  </div>
+                </div>
+
+                {/* 탭 1: 종합 성과 내용 */}
+                {activeTab === "summary" && (
+                  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 bg-white border border-slate-200 p-6 rounded-xl shadow-sm flex flex-col">
+                      <div class="border-b border-slate-100 pb-3 mb-6 flex justify-between items-center">
+                        <h3 class="font-bold text-slate-800 text-base">분기별 경영 실적 성장 트렌드</h3>
+                        <span class="text-xs font-semibold text-slate-400">단위: 원</span>
+                      </div>
+                      <div class="h-72 flex items-end gap-3 sm:gap-4 border-b border-slate-200 pb-2 pt-6 px-2">
+                        {processedQuarters.map((q, idx) => {
+                          const maxSales = Math.max(...processedQuarters.map(o => o.sales), 1);
+                          return (
+                            <div key={idx} class="flex-1 flex flex-col items-center h-full justify-end relative group">
+                              <div class="absolute bottom-full mb-2 bg-slate-800 text-white text-[11px] p-2 rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none w-32">
+                                <div class="font-bold mb-1">{q.name}</div>
+                                <div class="text-blue-300">매출: {(q.sales / 100000000).toFixed(1)}억</div>
+                                <div class="text-amber-400">영업익: {(q.operatingProfit / 100000000).toFixed(1)}억</div>
+                              </div>
+                              <div class="w-full flex justify-center gap-1 items-end h-full">
+                                <div style={{ height: `${(q.sales / maxSales) * 85}%` }} class="w-5 bg-blue-600 rounded-t-sm shadow-sm group-hover:bg-blue-500 transition-all"></div>
+                                <div style={{ height: `${Math.max((q.operatingProfit / maxSales) * 85, 2)}%` }} class="w-5 bg-amber-500 rounded-t-sm shadow-sm group-hover:bg-amber-400 transition-all"></div>
+                              </div>
+                              <span class="text-[10px] text-slate-500 mt-2 font-bold whitespace-nowrap">{q.name}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div class="flex justify-center mt-4 gap-6 text-xs font-semibold">
+                        <div class="flex items-center gap-1.5"><span class="w-3 h-3 bg-blue-600 rounded-sm"></span> 매출액</div>
+                        <div class="flex items-center gap-1.5"><span class="w-3 h-3 bg-amber-500 rounded-sm"></span> 영업이익</div>
+                      </div>
+                    </div>
+
+                    {/* 세일즈 포트폴리오 비중 */}
+                    <div class="bg-white border border-slate-200 p-6 rounded-xl shadow-sm flex flex-col justify-between">
+                      <div class="border-b border-slate-100 pb-3">
+                        <h3 class="font-bold text-slate-800 text-base">글로벌 시장 세일즈 비중</h3>
+                      </div>
+                      <div class="space-y-4 my-4 flex-1 flex flex-col justify-center">
+                        <div class="flex justify-between items-center bg-slate-50 p-2 rounded border text-xs">
+                          <span class="font-bold text-slate-600">기준 분기 선택</span>
+                          <select value={selectedIdx} onChange={(e) => setSelectedIdx(Number(e.target.value))} class="bg-white border border-slate-300 rounded font-bold p-1 outline-none">
+                            {processedQuarters.map((q, i) => (
+                              <option key={i} value={i}>{q.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {[
+                          { label: "대한민국 내수", val: activeQ?.krSales || 0, color: "bg-blue-600" },
+                          { label: "미국 글로벌 수출", val: activeQ?.usSales || 0, color: "bg-indigo-500" },
+                          { label: "중국 글로벌 수출", val: activeQ?.cnSales || 0, color: "bg-emerald-500" }
+                        ].map((m, k) => {
+                          const total = (activeQ?.krSales || 0) + (activeQ?.usSales || 0) + (activeQ?.cnSales || 0) || 1;
+                          const pct = (m.val / total) * 100;
+                          return (
+                            <div key={k} class="space-y-1.5">
+                              <div class="flex justify-between text-xs font-bold text-slate-600">
+                                <span>{m.label}</span>
+                                <span>{m.val.toLocaleString()}대 ({pct.toFixed(1)}%)</span>
+                              </div>
+                              <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div style={{ width: `${pct}%` }} class={`h-full ${m.color}`}></div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 탭 2: 상세 재무제표 대쉬 */}
+                {activeTab === "financials" && (
+                  <div class="bg-white border border-slate-200 p-6 rounded-xl shadow-sm overflow-x-auto">
+                    <h3 class="font-bold text-slate-800 text-base mb-4 border-b pb-2">종합 파이낸셜 데이터 시트</h3>
+                    <table class="w-full text-left text-xs min-w-[800px]">
                       <thead>
-                        <tr class="border-b border-slate-200">
-                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700">검토 제안 투자안</th>
-                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">초기 투자 지출</th>
-                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">1차년도 현금유입</th>
-                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">2차년도 현금유입</th>
-                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">3차년도 현금유입</th>
-                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">4차년도 현금유입</th>
-                          <th class="py-3 px-4 bg-blue-50 font-bold text-blue-800 text-right border-l border-blue-100">순현재가치 (NPV)</th>
-                          <th class="py-3 px-4 bg-indigo-50 font-bold text-indigo-800 text-right border-l border-indigo-100">내부수익률 (IRR)</th>
-                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-center">의사결정 결과</th>
+                        <tr class="border-b bg-slate-50 text-slate-600 font-bold">
+                          <th class="p-3">계정 분류 명칭</th>
+                          {processedQuarters.map((q, i) => <th key={i} class="p-3 text-right">{q.name}</th>)}
                         </tr>
                       </thead>
-                      <tbody id="investments-table-body" class="divide-y divide-slate-100">
-                          <!-- JS 동적 갱신 -->
+                      <tbody class="divide-y text-slate-700">
+                        <tr class="font-bold bg-slate-50/50"><td class="p-3 text-blue-700" colSpan={processedQuarters.length + 1}>1. 규모 요약 보고 항목</td></tr>
+                        {[
+                          { label: "매출액 (Sales)", key: "sales" },
+                          { label: "영업이익 (Operating Profit)", key: "operatingProfit" },
+                          { label: "당기순이익 (Net Income)", key: "netIncome" },
+                          { label: "자산총계 (Total Assets)", key: "totalAssets" },
+                          { label: "자본총계 (Total Equity)", key: "totalEquity" }
+                        ].map((row, rIdx) => (
+                          <tr key={rIdx} class="hover:bg-slate-50">
+                            <td class="p-3 font-semibold">{row.label}</td>
+                            {processedQuarters.map((q, i) => <td key={i} class="p-3 text-right font-mono">{formatMoney(q[row.key])}</td>)}
+                          </tr>
+                        ))}
+                        <tr class="font-bold bg-slate-50/50"><td class="p-3 text-indigo-700" colSpan={processedQuarters.length + 1}>2. 재무 비율 상태 분석 지표</td></tr>
+                        {[
+                          { label: "유동비율", key: "currentRatio", isPct: true },
+                          { label: "당좌비율", key: "quickRatio", isPct: true },
+                          { label: "자기자본이익률 (ROE)", key: "roe", isPct: true },
+                          { label: "총자산이익률 (ROA)", key: "roa", isPct: true }
+                        ].map((row, rIdx) => (
+                          <tr key={rIdx} class="hover:bg-slate-50">
+                            <td class="p-3 font-semibold">{row.label}</td>
+                            {processedQuarters.map((q, i) => {
+                              if (row.key.includes("Ratio") && q.currentLiabilities === 0) {
+                                return <td key={i} class="p-3 text-right text-slate-400 font-bold">무부채 건전</td>;
+                              }
+                              return <td key={i} class="p-3 text-right font-mono text-blue-600 font-bold">{formatPercent(q[row.key])}</td>;
+                            })}
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
-                </div>
-            </div>
+                )}
 
-            <!-- 탭 4: 시뮬레이터 -->
-            <div id="tab-whatif" class="tab-content hidden grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <!-- 컨트롤 바 -->
-                <div class="bg-white border border-slate-200 p-6 rounded-xl shadow-sm space-y-6">
-                  <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                    <h2 class="font-bold text-slate-800 text-lg">민감도 분석 독립 변수 조절</h2>
-                    <button id="btn-apply-actual" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1 rounded text-xs font-bold transition-all flex items-center gap-1">
-                        <i class="fa-solid fa-file-invoice-dollar"></i>
-                        현재 분기 실제값 적용
-                    </button>
-                  </div>
-                  <div class="space-y-4">
-                    <div class="space-y-2">
-                      <div class="flex justify-between text-xs font-bold text-slate-600"><span>제품 판매 단가 (P)</span><span id="val-price">700,000 원</span></div>
-                      <input id="slider-price" type="range" min="300000" max="1500000" step="10000" value="700000" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"/>
-                    </div>
-                    <div class="space-y-2">
-                      <div class="flex justify-between text-xs font-bold text-slate-600"><span>단위당 변동비 (V)</span><span id="val-vcost">420,000 원</span></div>
-                      <input id="slider-vcost" type="range" min="200000" max="800000" step="10000" value="420000" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-amber-500"/>
-                    </div>
-                    <div class="space-y-2">
-                      <div class="flex justify-between text-xs font-bold text-slate-600"><span>분기 고정비 규모 (F)</span><span id="val-fcost">300억</span></div>
-                      <input id="slider-fcost" type="range" min="10000000000" max="60000000000" step="500000000" value="30000000000" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-500"/>
-                    </div>
-                    <div class="space-y-2">
-                      <div class="flex justify-between text-xs font-bold text-slate-600"><span>판매 수량 설정 (Q)</span><span id="val-volume">150,000 대</span></div>
-                      <input id="slider-volume" type="range" min="30000" max="400000" step="5000" value="150000" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-500"/>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 이익 분석 리포트 -->
-                <div class="lg:col-span-2 bg-white border border-slate-200 p-6 rounded-xl shadow-sm flex flex-col justify-between">
-                  <div class="border-b border-slate-100 pb-3">
-                    <h2 class="font-bold text-slate-800 text-lg">CVP(원가-조업도-이익) 분석 & 손익분기점 산출</h2>
-                  </div>
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 my-4">
-                    <div class="bg-slate-50 border border-slate-200 p-5 rounded-lg text-center">
-                      <div class="text-xs text-slate-500 font-bold">손익분기 달성량 (BEP Volume)</div>
-                      <div class="text-3xl font-black text-slate-900 mt-2" id="bep-volume-text">0 대</div>
-                      <p class="text-xs text-slate-400 font-medium mt-1">단위당 공헌이익(P-V): <span id="unit-contribution-text">0원</span></p>
-                    </div>
-                    <div id="sim-profit-box" class="border p-5 rounded-lg text-center bg-emerald-50 border-emerald-200">
-                      <div class="text-xs text-slate-500 font-bold">시뮬레이션 가상 영업이익</div>
-                      <div class="text-3xl font-black mt-2 text-emerald-700" id="sim-profit-text">0원</div>
-                      <p class="text-xs text-slate-400 font-medium mt-1">공헌이익률: <span id="contribution-ratio-text">0%</span></p>
-                    </div>
-                  </div>
-
-                  <div class="space-y-2 mt-4">
-                    <div class="text-xs font-bold text-slate-600 flex justify-between">
-                      <span>목표 조업도 대비 BEP 현황 (최대 40만대 기준)</span>
-                      <span class="font-mono text-slate-400">BEP 임계점 오버레이</span>
-                    </div>
-                    <div class="relative pt-2 pb-6">
-                      <div class="h-4 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner relative">
-                        <div id="bep-progress-bar" style="width: 0%" class="h-full transition-all duration-500 bg-emerald-500"></div>
-                        <div id="bep-marker" style="left: 0%" class="absolute top-0 bottom-0 w-1.5 bg-rose-500 shadow-md"></div>
+                {/* 탭 3: 자본예산 의사결정 */}
+                {activeTab === "decisions" && (
+                  <div class="bg-white border border-slate-200 p-6 rounded-xl shadow-sm space-y-6">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-4 gap-4">
+                      <div>
+                        <h3 class="font-bold text-slate-800 text-lg">투자 경제성 검토 모듈</h3>
+                        <p class="text-xs text-slate-400 mt-1">DCF(할인현금흐름) 기법에 의거한 실시간 가치 평가</p>
                       </div>
-                      <div class="absolute top-12 w-full flex justify-between text-xs font-bold text-slate-500">
-                        <span>0 대</span>
-                        <span id="bep-marker-label" class="text-rose-600 absolute" style="left: 0%">BEP 포인트</span>
-                        <span id="target-volume-label" class="text-emerald-600 absolute right-0 text-right">설정 판매량: 0 대</span>
+                      <div class="bg-slate-50 border p-2 rounded flex items-center gap-2 text-xs font-bold">
+                        <span>요구수익률 (WACC) 변경</span>
+                        <input type="number" step="0.1" value={wacc} onChange={(e) => setWacc(parseFloat(e.target.value) || 0)} class="w-14 text-center border p-0.5 rounded bg-white"/>
+                        <span>%</span>
                       </div>
                     </div>
-                  </div>
-                </div>
-            </div>
-        </main>
-    </div>
 
-    <!-- 비즈니스 로직 연동 스크립트 -->
-    <script>
-        document.addEventListener("DOMContentLoaded", () => {
-            // ==========================================
-            // 📊 5차 2Q 원본 데이터 스냅샷 (오프라인 버퍼 완비)
-            // ==========================================
-            const DEMO_QUARTERS = [
-              { name: "3차 4Q", sales: 88631620000, operatingProfit: 5069504571, netIncome: 4119883657, totalAssets: 74315106254, totalEquity: 74315106254, currentAssets: 64315106254, quickAssets: 56723088633, inventory: 7836734071, receivables: 35452648000, currentLiabilities: 0, krSales: 54225, usSales: 34409, cnSales: 55000, salesVolume: 143634, ads: 7390000000, promo: 2253750000, logistics: 3460800000, rd: 5000000000, costPerUnit: 361523 },
-              { name: "4차 1Q", sales: 95061638854, operatingProfit: 5020140115, netIncome: 4990640115, totalAssets: 79156027165, totalEquity: 79156027165, currentAssets: 70156027165, quickAssets: 59671196909, inventory: 10484830256, receivables: 38024655541, currentLiabilities: 0, krSales: 57034, usSales: 32204, cnSales: 39491, salesVolume: 128729, ads: 8751360000, promo: 2881846000, logistics: 3962425280, rd: 6000000000, costPerUnit: 391268 },
-              { name: "4차 2Q", sales: 120027616700, operatingProfit: 6773813322, netIncome: 6723313322, totalAssets: 85812107354, totalEquity: 85812107354, currentAssets: 77812107354, quickAssets: 52150361487, inventory: 25661745867, receivables: 48011046680, currentLiabilities: 0, krSales: 50758, usSales: 34945, cnSales: 55000, salesVolume: 140703, ads: 8103220000, promo: 3252304000, logistics: 5200870620, rd: 6480000000, costPerUnit: 409337 },
-              { name: "4차 3Q", sales: 143574593837, operatingProfit: 17965346853, netIncome: 17935206853, totalAssets: 104478689207, totalEquity: 104478689207, currentAssets: 97478689207, quickAssets: 63663946684, inventory: 33814742523, receivables: 57429837535, currentLiabilities: 0, krSales: 74765, usSales: 32358, cnSales: 72709, salesVolume: 179832, ads: 10526300000, promo: 3990795600, logistics: 8028362370, rd: 7000000000, costPerUnit: 422956 },
-              { name: "4차 4Q", sales: 184376453347, operatingProfit: 15070922124, netIncome: 15075846124, totalAssets: 119554535331, totalEquity: 119554535331, currentAssets: 113554535331, quickAssets: 104065840311, inventory: 9488695020, receivables: 73750581339, currentLiabilities: 0, krSales: 72709, usSales: 73824, cnSales: 38062, salesVolume: 184595, ads: 15835000000, promo: 5137080800, logistics: 6441144000, rd: 7700000000, costPerUnit: 438500 },
-              { name: "5차 1Q", sales: 164497500392, operatingProfit: 24091689948, netIncome: 20150784448, totalAssets: 143405319779, totalEquity: 143405319779, currentAssets: 112505319779, quickAssets: 96559852943, inventory: 15945466836, receivables: 65799000157, currentLiabilities: 0, krSales: 77420, usSales: 34409, cnSales: 54225, salesVolume: 166054, ads: 15234000000, promo: 6502367200, logistics: 5556964830, rd: 7700000000, costPerUnit: 472178 },
-              { name: "5차 2Q", sales: 220841570000, operatingProfit: 59355655848, netIncome: 55431433348, totalAssets: 197728124460, totalEquity: 197728124460, currentAssets: 167828124460, quickAssets: 137894598011, inventory: 29933526449, receivables: 88336628000, currentLiabilities: 0, krSales: 118623, usSales: 40000, cnSales: 58443, salesVolume: 217066, ads: 17081500000, promo: 9370337000, logistics: 7567761520, rd: 10000, costPerUnit: 388929 }
-            ];
-
-            const INITIAL_INVESTMENTS = [
-              { id: "patent", title: "신공정 특허 인수", initial: -2000000000, cf: [800000000, 900000000, 1000000000, 1200000000] },
-              { id: "mna", title: "유통채널 M&A", initial: -5000000000, cf: [1500000000, 1800000000, 2200000000, 2500000000] },
-              { id: "expansion", title: "신공장 설비 증설", initial: -10000000000, cf: [2500000000, 3500000000, 4500000000, 5500000000] }
-            ];
-
-            // 전역 세션 상태
-            let activeTab = "summary";
-            let quarters = [...DEMO_QUARTERS];
-            let selectedQIdx = DEMO_QUARTERS.length - 1;
-            let discountRate = 3.0;
-
-            // What-if 시뮬레이션 상태
-            let price = 700000;
-            let variableCost = 420000;
-            let fixedCost = 30000000000;
-            let targetVolume = 150000;
-
-            // ==========================================
-            // 📡 구글 시트 파서 엔진 (CSV 패치 구조)
-            // ==========================================
-            const parseCSV = (str) => {
-              const arr = [];
-              let quote = false;
-              let row = 0, col = 0;
-              for (let c = 0; c < str.length; c++) {
-                let cc = str[c], nc = str[c + 1];
-                arr[row] = arr[row] || [];
-                arr[row][col] = arr[row][col] || '';
-                if (cc === '"' && quote && nc === '"') { arr[row][col] += cc; ++c; continue; }
-                if (cc === '"') { quote = !quote; continue; }
-                if (cc === ',' && !quote) { ++col; continue; }
-                if (cc === '\r' && nc === '\n' && !quote) { ++row; col = 0; ++c; continue; }
-                if (cc === '\n' && !quote) { ++row; col = 0; continue; }
-                if (cc === '\r' && !quote) { ++row; col = 0; continue; }
-                arr[row][col] += cc;
-              }
-              return arr;
-            };
-
-            const fetchGoogleSheetData = async () => {
-                const spreadsheetInput = "1WMTK2Or9K_HzgGlhKzkSDK41G8J_Q4s4ORV1LS83nsc";
-                const url = `https://docs.google.com/spreadsheets/d/${spreadsheetInput}/export?format=csv`;
-                
-                const syncIcon = document.getElementById("sync-icon");
-                const syncText = document.getElementById("sync-text");
-                const syncStatus = document.getElementById("sync-status");
-                const errorBanner = document.getElementById("error-banner");
-                const errorText = document.getElementById("error-text");
-
-                syncIcon.classList.add("fa-spin");
-                errorBanner.classList.add("hidden");
-
-                try {
-                    const response = await fetch(url);
-                    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
-                    
-                    const text = await response.text();
-                    if (text.trim().startsWith("<!DOCTYPE html>")) throw new Error("구글 스프레드시트 공유설정이 '링크가 있는 모든 사용자'로 해제되어 있는지 확인바랍니다.");
-
-                    const rows = parseCSV(text);
-                    if (!rows || rows.length < 2) throw new Error("스프레드시트 내 유효 데이터 행이 없습니다.");
-
-                    const parsedQuarters = [];
-                    let headerIdx = rows.findIndex(r => r.some(c => String(c).includes("분기") || String(c).includes("Q") || String(c).includes("4분기")));
-                    if (headerIdx === -1) headerIdx = 0;
-
-                    const headerNames = rows[headerIdx].map(h => String(h).trim());
-
-                    headerNames.forEach((name, colIdx) => {
-                        if (colIdx === 0 || !name || name.includes("예정")) return;
-
-                        const qData = { name, sales: 0, operatingProfit: 0, netIncome: 0, totalAssets: 0, totalEquity: 0, currentAssets: 0, quickAssets: 0, inventory: 0, receivables: 0, currentLiabilities: 0, krSales: 0, usSales: 0, cnSales: 0, salesVolume: 0, ads: 0, promo: 0, logistics: 0, rd: 0, costPerUnit: 0 };
-                        let hasValidData = false;
-
-                        rows.forEach((row, rIdx) => {
-                            if (rIdx <= headerIdx) return;
-
-                            const rawKey = row[0] ? String(row[0]) : "";
-                            const key = rawKey.replace(/\s+/g, "");
-                            const valStr = row[colIdx] ? String(row[colIdx]).replace(/[^0-9.-]/g, "") : "0";
-                            const val = parseFloat(valStr) || 0;
-
-                            if (val !== 0) hasValidData = true;
-
-                            if (key.includes("매출액") && !key.includes("증가율")) qData.sales = val;
-                            else if (key.includes("영업이익") && !key.includes("증가율") && !key.includes("이익률")) qData.operatingProfit = val;
-                            else if (key.includes("당기순이익") && !key.includes("이익률")) qData.netIncome = val;
-                            else if (key.includes("자산총계") && !key.includes("이익률")) qData.totalAssets = val;
-                            else if ((key.includes("자본총계") || key.includes("자기자본")) && !key.includes("이익률") && !key.includes("ROE")) qData.totalEquity = val;
-                            else if (key.includes("유동자산") && !key.includes("비율")) qData.currentAssets = val;
-                            else if (key.includes("당좌자산") && !key.includes("비율")) qData.quickAssets = val;
-                            else if (key.includes("재고자산") && !key.includes("회전")) qData.inventory = val;
-                            else if (key.includes("매출채권") && !key.includes("회전")) qData.receivables = val;
-                            else if ((key.includes("유동부채") || key.includes("부채총계")) && !key.includes("비율")) qData.currentLiabilities = val;
-                            else if (key.includes("한국판매량")) qData.krSales = val;
-                            else if (key.includes("미국판매량")) qData.usSales = val;
-                            else if (key.includes("중국판매량")) qData.cnSales = val;
-                            else if ((key.includes("총판매량") || key === "판매량" || key === "총판매량(대)") && !key.includes("한국") && !key.includes("미국") && !key.includes("중국")) qData.salesVolume = val;
-                            else if (key.includes("광고비")) qData.ads = val;
-                            else if (key.includes("판매촉진비")) qData.promo = val;
-                            else if (key.includes("물류비")) qData.logistics = val;
-                            else if (key.includes("연구개발비")) qData.rd = val;
-                            else if (key.includes("제조원가")) qData.costPerUnit = val;
-                        });
-
-                        if (hasValidData) parsedQuarters.push(qData);
-                    });
-
-                    if (parsedQuarters.length > 0) {
-                        quarters = parsedQuarters;
-                        selectedQIdx = quarters.length - 1;
-                        
-                        // 동기화 상태 스타일 갱신
-                        syncStatus.className = "flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-semibold bg-emerald-50 border-emerald-200 text-emerald-700";
-                        syncText.textContent = "구글 시트 연동 성공";
-                    } else {
-                        throw new Error("동적으로 구성 가능한 구조적 실적 데이터가 탐지되지 않았습니다.");
-                    }
-                } catch (err) {
-                    console.error(err);
-                    errorText.textContent = `구글 스프레드시트 로드 실패: ${err.message}`;
-                    errorBanner.classList.remove("hidden");
-                    
-                    quarters = [...DEMO_QUARTERS];
-                    selectedQIdx = DEMO_QUARTERS.length - 1;
-
-                    syncStatus.className = "flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-semibold bg-amber-50 border-amber-200 text-amber-700";
-                    syncText.textContent = "오프라인 캐시 보존 데이터 전환됨";
-                } finally {
-                    syncIcon.classList.remove("fa-spin");
-                    renderApp();
-                }
-            };
-
-            // ==========================================
-            // 🧮 투자 안분석 수식 (NPV / IRR)
-            // ==========================================
-            const calcNPV = (initial, cashflows, rate) => {
-              const r = rate / 100;
-              let npv = initial;
-              for (let t = 0; t < cashflows.length; t++) {
-                npv += cashflows[t] / Math.pow(1 + r, t + 1);
-              }
-              return npv;
-            };
-
-            const calcIRR = (initial, cashflows) => {
-              let guess = 0.1;
-              for (let i = 0; i < 100; i++) {
-                let npv = initial, dNpv = 0;
-                for (let t = 0; t < cashflows.length; t++) {
-                  const cf = cashflows[t];
-                  npv += cf / Math.pow(1 + guess, t + 1);
-                  dNpv -= ((t + 1) * cf) / Math.pow(1 + guess, t + 2);
-                }
-                const nextGuess = guess - npv / dNpv;
-                if (Math.abs(nextGuess - guess) < 1e-6) return nextGuess * 100;
-                guess = nextGuess;
-              }
-              return guess * 100;
-            };
-
-            // ==========================================
-            // 🛠️ 애플리케이션 화면 통합 렌더러
-            // ==========================================
-            const renderApp = () => {
-                // 1. 계산 레이어 구동
-                const processed = quarters.map((q, idx) => {
-                    const prevQ = idx > 0 ? quarters[idx - 1] : null;
-
-                    const currentRatio = q.currentLiabilities > 0 ? (q.currentAssets / q.currentLiabilities) * 100 : 0;
-                    const quickRatio = q.currentLiabilities > 0 ? (q.quickAssets / q.currentLiabilities) * 100 : 0;
-                    const inventoryTurnover = q.inventory > 0 ? q.sales / q.inventory : 0;
-                    const receivablesTurnover = q.receivables > 0 ? q.sales / q.receivables : 2.5;
-                    const roa = q.totalAssets > 0 ? (q.netIncome / q.totalAssets) * 100 : 0;
-                    const roe = q.totalEquity > 0 ? (q.netIncome / q.totalEquity) * 100 : 0;
-
-                    const salesGrowth = prevQ && prevQ.sales > 0 ? ((q.sales - prevQ.sales) / prevQ.sales) * 100 : 0;
-                    const opGrowth = prevQ && prevQ.operatingProfit > 0 ? ((q.operatingProfit - prevQ.operatingProfit) / prevQ.operatingProfit) * 100 : 0;
-
-                    return { ...q, currentRatio, quickRatio, inventoryTurnover, receivablesTurnover, roa, roe, salesGrowth, opGrowth };
-                });
-
-                const activeQ = processed[selectedQIdx] || processed[0];
-
-                // 2. 상단 KPI 카드 데이터 삽입
-                document.querySelectorAll(".q-name-label").forEach(el => el.textContent = activeQ.name);
-                document.getElementById("kpi-sales").textContent = formatMillion(activeQ.sales);
-                
-                const sGrowthEl = document.getElementById("kpi-sales-growth");
-                sGrowthEl.textContent = `${activeQ.salesGrowth >= 0 ? '▲' : '▼'} ${Math.abs(activeQ.salesGrowth).toFixed(1)}%`;
-                sGrowthEl.className = `px-2 py-0.5 rounded text-xs font-bold ${activeQ.salesGrowth >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`;
-
-                document.getElementById("kpi-profit").textContent = formatMillion(activeQ.operatingProfit);
-                const pGrowthEl = document.getElementById("kpi-profit-growth");
-                pGrowthEl.textContent = `${activeQ.opGrowth >= 0 ? '▲' : '▼'} ${Math.abs(activeQ.opGrowth).toFixed(1)}%`;
-                pGrowthEl.className = `px-2 py-0.5 rounded text-xs font-bold ${activeQ.opGrowth >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`;
-
-                document.getElementById("kpi-roe").textContent = formatRatio(activeQ.roe);
-                document.getElementById("kpi-quick").textContent = activeQ.currentLiabilities === 0 ? "무부채" : formatRatio(activeQ.quickRatio);
-
-                // 3. 탭별 선택 제어
-                document.querySelectorAll(".tab-content").forEach(el => el.classList.add("hidden"));
-                document.getElementById(`tab-${activeTab}`).classList.remove("hidden");
-
-                // 4. 종합 성과 대시보드 탭 처리
-                if (activeTab === "summary") {
-                    // (1) 성장 추이 HTML 차트 동적 렌더링
-                    const chartContainer = document.getElementById("chart-container");
-                    chartContainer.innerHTML = "";
-                    const maxVal = Math.max(...processed.map(item => item.sales), 1);
-
-                    processed.forEach(q => {
-                        const sHeight = (q.sales / maxVal) * 90;
-                        const pHeight = (q.operatingProfit / maxVal) * 90;
-
-                        const colDiv = document.createElement("div");
-                        colDiv.className = "flex-1 flex flex-col items-center h-full justify-end relative group z-10";
-                        colDiv.innerHTML = `
-                            <div class="absolute bottom-full mb-3 bg-slate-800 text-white text-xs p-3 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none w-36">
-                              <div class="font-bold mb-1 border-b border-slate-600 pb-1">${q.name}</div>
-                              <div class="text-blue-300 flex justify-between"><span>매출:</span> <span>${formatMillion(q.sales)}</span></div>
-                              <div class="text-amber-400 flex justify-between"><span>영업이익:</span> <span>${formatMillion(q.operatingProfit)}</span></div>
-                            </div>
-                            <div class="w-full flex justify-center gap-1.5 h-full items-end">
-                              <div style="height: ${sHeight}%" class="w-6 sm:w-8 bg-blue-600 rounded-t-sm shadow-sm group-hover:bg-blue-500 transition-colors"></div>
-                              <div style="height: ${Math.max(pHeight, 1)}%" class="w-6 sm:w-8 bg-amber-500 rounded-t-sm shadow-sm group-hover:bg-amber-400 transition-colors"></div>
-                            </div>
-                            <span class="text-xs text-slate-600 font-semibold mt-3 whitespace-nowrap">${q.name}</span>
-                        `;
-                        chartContainer.appendChild(colDiv);
-                    });
-
-                    // (2) 분기 셀렉트 박스 동적 주입
-                    const qSelect = document.getElementById("quarter-select");
-                    qSelect.innerHTML = "";
-                    processed.forEach((q, idx) => {
-                        const opt = document.createElement("option");
-                        opt.value = idx;
-                        opt.textContent = q.name;
-                        if (idx === selectedQIdx) opt.selected = true;
-                        qSelect.appendChild(opt);
-                    });
-
-                    // (3) 글로벌 비중 진행 바 갱신
-                    const geoContainer = document.getElementById("geo-distribution-container");
-                    geoContainer.innerHTML = "";
-                    const totalVolume = activeQ.salesVolume || 1;
-                    const geos = [
-                        { label: "한국 시장 (내수)", val: activeQ.krSales, color: "bg-blue-600" },
-                        { label: "미국 수출", val: activeQ.usSales, color: "bg-indigo-500" },
-                        { label: "중국 수출", val: activeQ.cnSales, color: "bg-emerald-500" }
-                    ];
-
-                    geos.forEach(item => {
-                        const pct = (item.val / totalVolume) * 100;
-                        const row = document.createElement("div");
-                        row.className = "space-y-2";
-                        row.innerHTML = `
-                            <div class="flex justify-between items-end">
-                                <span class="font-bold text-slate-700 text-sm">${item.label}</span>
-                                <div class="text-right">
-                                  <span class="font-black text-slate-900 text-base">${formatRaw(item.val)}대</span>
-                                  <span class="text-slate-500 text-xs ml-2 font-medium">(${pct.toFixed(1)}%)</span>
-                                </div>
-                            </div>
-                            <div class="h-2.5 bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                                <div style="width: ${pct}%" class="h-full ${item.color} rounded-full"></div>
-                            </div>
-                        `;
-                        geoContainer.appendChild(row);
-                    });
-                }
-
-                // 5. 상세 재무제표 테이블 렌더링
-                if (activeTab === "financials") {
-                    const table = document.getElementById("financials-table");
-                    table.innerHTML = "";
-
-                    const colCount = processed.length;
-                    
-                    let tableHTML = `
+                    <div class="overflow-x-auto">
+                      <table class="w-full text-left text-xs min-w-[700px]">
                         <thead>
-                          <tr>
-                            <th class="py-4 px-4 bg-slate-50 font-bold text-slate-700 border-b-2 border-slate-300 sticky left-0 z-10 w-1/4">핵심 재무 항목</th>
-                            ${processed.map(q => `<th class="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300 whitespace-nowrap">${q.name}</th>`).join('')}
+                          <tr class="bg-slate-50 border-b text-slate-600 font-bold">
+                            <th class="p-3">제안 프로젝트 명칭</th>
+                            <th class="p-3 text-right">초기 투자 지출</th>
+                            <th class="p-3 text-right">1차년도 CF</th>
+                            <th class="p-3 text-right">2차년도 CF</th>
+                            <th class="p-3 text-right">3차년도 CF</th>
+                            <th class="p-3 text-right">4차년도 CF</th>
+                            <th class="p-3 text-right bg-blue-50 text-blue-800 font-black">순현재가치 (NPV)</th>
+                            <th class="p-3 text-right bg-indigo-50 text-indigo-800 font-black">내부수익률 (IRR)</th>
+                            <th class="p-3 text-center">최종 승인 여부</th>
                           </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-100">
-                          <tr class="bg-slate-50/50"><td colSpan="${colCount + 1}" class="py-3 px-4 font-extrabold text-blue-800 text-xs sticky left-0 z-10">1. 영업 실적 및 재무 규모</td></tr>
-                    `;
+                        <tbody class="divide-y text-slate-700">
+                          {investmentProjects.map(p => {
+                            const netPresentVal = calcNPV(p.initial, p.cf, wacc);
+                            const internalRate = calcIRR(p.initial, p.cf);
+                            return (
+                              <tr key={p.id} class="hover:bg-slate-50">
+                                <td class="p-3 font-bold">{p.title}</td>
+                                <td class="p-3 text-right text-rose-600 font-mono font-medium">{p.initial.toLocaleString()} 원</td>
+                                {p.cf.map((c, idx) => <td key={idx} class="p-3 text-right font-mono">+{c.toLocaleString()}</td>)}
+                                <td class="p-3 text-right bg-blue-50/70 text-blue-700 font-bold font-mono">{Math.round(netPresentVal).toLocaleString()} 원</td>
+                                <td class="p-3 text-right bg-indigo-50/70 text-indigo-700 font-bold font-mono">{internalRate.toFixed(2)}%</td>
+                                <td class="p-3 text-center">
+                                  <span class={`px-2 py-0.5 rounded text-[10px] font-black ${netPresentVal >= 0 ? 'bg-emerald-100 text-emerald-800':'bg-rose-100 text-rose-800'}`}>
+                                    {netPresentVal >= 0 ? '통과 (Accept)' : '기각 (Reject)'}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
 
-                    const sizeRows = [
-                        { label: "매출액", key: "sales" }, 
-                        { label: "영업이익", key: "operatingProfit" }, 
-                        { label: "당기순이익", key: "netIncome" },
-                        { label: "자산총계", key: "totalAssets" }, 
-                        { label: "자본총계 (자기자본)", key: "totalEquity" }, 
-                        { label: "유동자산", key: "currentAssets" },
-                        { label: "당좌자산", key: "quickAssets" }, 
-                        { label: "재고자산", key: "inventory" }, 
-                        { label: "매출채권", key: "receivables" }, 
-                        { label: "유동부채", key: "currentLiabilities" }
-                    ];
+                {/* 탭 4: 시뮬레이터 */}
+                {activeTab === "whatif" && (
+                  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="bg-white border border-slate-200 p-6 rounded-xl shadow-sm space-y-4">
+                      <div class="flex justify-between items-center border-b pb-2">
+                        <h3 class="font-bold text-slate-800 text-base">독립변수 튜닝</h3>
+                        <button onClick={applyActualMetrics} class="bg-slate-100 hover:bg-slate-200 text-slate-700 border text-[11px] font-bold px-2 py-1 rounded">
+                          실제 분기값 로드
+                        </button>
+                      </div>
+                      <div class="space-y-4">
+                        <div class="space-y-1">
+                          <div class="flex justify-between text-xs font-bold text-slate-500"><span>제품 판매단가 (P)</span><span>{price.toLocaleString()}원</span></div>
+                          <input type="range" min={300000} max={1500000} step={10000} value={price} onChange={(e) => setPrice(Number(e.target.value))} class="w-full accent-blue-600"/>
+                        </div>
+                        <div class="space-y-1">
+                          <div class="flex justify-between text-xs font-bold text-slate-500"><span>변동 원가 (V)</span><span>{vcost.toLocaleString()}원</span></div>
+                          <input type="range" min={200000} max={800000} step={10000} value={vcost} onChange={(e) => setVcost(Number(e.target.value))} class="w-full accent-amber-500"/>
+                        </div>
+                        <div class="space-y-1">
+                          <div class="flex justify-between text-xs font-bold text-slate-500"><span>고정 비용 규모 (F)</span><span>{(fcost/100000000).toFixed(1)}억원</span></div>
+                          <input type="range" min={10000000000} max={60000000000} step={500000000} value={fcost} onChange={(e) => setFcost(Number(e.target.value))} class="w-full accent-indigo-500"/>
+                        </div>
+                        <div class="space-y-1">
+                          <div class="flex justify-between text-xs font-bold text-slate-500"><span>목표 판매조업도 (Q)</span><span>{volume.toLocaleString()}대</span></div>
+                          <input type="range" min={30000} max={400000} step={5000} value={volume} onChange={(e) => setVolume(Number(e.target.value))} class="w-full accent-emerald-500"/>
+                        </div>
+                      </div>
+                    </div>
 
-                    sizeRows.forEach(row => {
-                        tableHTML += `
-                            <tr class="hover:bg-slate-50 transition-colors">
-                              <td class="py-3.5 px-4 font-semibold text-slate-700 sticky left-0 bg-white shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] z-10 border-r border-slate-100">${row.label}</td>
-                              ${processed.map(q => `<td class="py-3.5 px-4 text-right font-mono text-slate-600 font-medium">${formatRaw(q[row.key])}</td>`).join('')}
-                            </tr>
-                        `;
-                    });
+                    <div class="lg:col-span-2 bg-white border border-slate-200 p-6 rounded-xl shadow-sm flex flex-col justify-between">
+                      <h3 class="font-bold text-slate-800 text-base border-b pb-2">CVP 분석 레포트 결과</h3>
+                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 my-4">
+                        <div class="bg-slate-50 p-4 rounded text-center border">
+                          <div class="text-xs font-bold text-slate-500">손익분기점 조업도 (BEP)</div>
+                          <div class="text-2xl font-black text-slate-800 mt-1">{bepVolume > 0 ? bepVolume.toLocaleString() + " 대" : "공헌이익 마이너스"}</div>
+                          <div class="text-[11px] text-slate-400 mt-1">단위당 공헌익: {cm.toLocaleString()}원</div>
+                        </div>
+                        <div class={`p-4 rounded text-center border ${simOp >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+                          <div class="text-xs font-bold text-slate-500">가상 시뮬레이션 영업익</div>
+                          <div class={`text-2xl font-black mt-1 ${simOp >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{formatMoney(simOp)}</div>
+                          <div class="text-[11px] text-slate-400 mt-1">공헌이익률: {price > 0 ? ((cm/price)*100).toFixed(1) : 0}%</div>
+                        </div>
+                      </div>
 
-                    tableHTML += `<tr class="bg-slate-50/50"><td colSpan="${colCount + 1}" class="py-3 px-4 font-extrabold text-blue-800 text-xs sticky left-0 z-10 border-t-2 border-slate-200 mt-4">2. 투자 가치 및 효율성 분석 비율</td></tr>`;
+                      <div class="space-y-2">
+                        <div class="text-xs font-bold text-slate-600 flex justify-between">
+                          <span>최대 한계 조업도(40만대) 대비 임계점 바</span>
+                        </div>
+                        <div class="h-4 bg-slate-100 rounded-full relative overflow-hidden shadow-inner">
+                          <div style={{ width: `${Math.min((volume / 400000) * 100, 100)}%` }} class={`h-full transition-all ${simOp >= 0 ? 'bg-emerald-500':'bg-amber-500'}`}></div>
+                          {bepVolume < 400000 && bepVolume > 0 && (
+                            <div style={{ left: `${(bepVolume / 400000) * 100}%` }} class="absolute top-0 bottom-0 w-1 bg-rose-500"></div>
+                          )}
+                        </div>
+                        <div class="flex justify-between text-[10px] font-bold text-slate-400">
+                          <span>0 대</span>
+                          <span class="text-rose-600">■ BEP 분기선</span>
+                          <span>설정치: {volume.toLocaleString()}대</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </main>
+            </div>
+          );
+        }
 
-                    const ratioRows = [
-                        { label: "유동비율", key: "currentRatio", format: formatRatio },
-                        { label: "당좌비율", key: "quickRatio", format: formatRatio },
-                        { label: "재고자산 회전율", key: "inventoryTurnover", format: formatTurnover },
-                        { label: "매출채권 회전율", key: "receivablesTurnover", format: formatTurnover },
-                        { label: "총자산이익률 (ROA)", key: "roa", format: formatRatio },
-                        { label: "자기자본이익률 (ROE)", key: "roe", format: formatRatio }
-                    ];
-
-                    ratioRows.forEach(row => {
-                        tableHTML += `
-                            <tr class="hover:bg-slate-50 transition-colors">
-                              <td class="py-3.5 px-4 font-semibold text-slate-700 sticky left-0 bg-white shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] z-10 border-r border-slate-100">${row.label}</td>
-                              ${processed.map(q => {
-                                  if ((row.key === "currentRatio" || row.key === "quickRatio") && q.currentLiabilities === 0) {
-                                      return `<td class="py-3.5 px-4 text-right font-mono text-slate-400 font-bold">무부채 (0%)</td>`;
-                                  }
-                                  return `<td class="py-3.5 px-4 text-right font-mono text-blue-600 font-bold">${row.format(q[row.key])}</td>`;
-                              }).join('')}
-                            </tr>
-                        `;
-                    });
-
-                    tableHTML += `</tbody>`;
-                    table.innerHTML = tableHTML;
-                }
-
-                // 6. 투자 심의 의사결정 탭 렌더링
-                if (activeTab === "decisions") {
-                    const tbody = document.getElementById("investments-table-body");
-                    tbody.innerHTML = "";
-
-                    INITIAL_INVESTMENTS.forEach(inv => {
-                        const npv = calcNPV(inv.initial, inv.cf, discountRate);
-                        const irr = calcIRR(inv.initial, inv.cf);
-
-                        const tr = document.createElement("tr");
-                        tr.className = "hover:bg-slate-50/50 transition-colors";
-                        tr.innerHTML = `
-                          <td class="py-4 px-4 font-bold text-slate-800">${inv.title}</td>
-                          <td class="py-4 px-4 text-right font-mono text-rose-600 font-semibold">${formatRaw(inv.initial)}원</td>
-                          ${inv.cf.map(cash => `<td class="py-4 px-4 text-right font-mono text-slate-600 font-medium">+${formatRaw(cash)}원</td>`).join('')}
-                          <td class="py-4 px-4 text-right font-mono font-bold bg-blue-50 text-blue-700 border-l border-blue-100">${formatRaw(Math.round(npv))}원</td>
-                          <td class="py-4 px-4 text-right font-mono font-bold bg-indigo-50 text-indigo-700 border-l border-indigo-100">${irr.toFixed(2)}%</td>
-                          <td class="py-4 px-4 text-center">
-                            <span class="px-2.5 py-1 rounded-full text-xs font-black ${npv >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">
-                              ${npv >= 0 ? '투자 적격 (Accept)' : '투자 기각 (Reject)'}
-                            </span>
-                          </td>
-                        `;
-                        tbody.appendChild(tr);
-                    });
-                }
-
-                // 7. What-If 시뮬레이션 민감도 분석 렌더링
-                if (activeTab === "whatif") {
-                    document.getElementById("val-price").textContent = `${formatRaw(price)} 원`;
-                    document.getElementById("val-vcost").textContent = `${formatRaw(variableCost)} 원`;
-                    document.getElementById("val-fcost").textContent = formatMillion(fixedCost);
-                    document.getElementById("val-volume").textContent = `${formatRaw(targetVolume)} 대`;
-
-                    const unitContribution = price - variableCost;
-                    const computedBep = unitContribution <= 0 ? 99999999 : Math.ceil(fixedCost / unitContribution);
-                    const simulatedProfit = unitContribution * targetVolume - fixedCost;
-
-                    const bepText = computedBep === 99999999 ? '공헌이익 음수' : `${formatRaw(computedBep)} 대`;
-                    document.getElementById("bep-volume-text").textContent = bepText;
-                    document.getElementById("unit-contribution-text").textContent = `${formatRaw(unitContribution)}원`;
-                    
-                    const simProfitBox = document.getElementById("sim-profit-box");
-                    const simProfitText = document.getElementById("sim-profit-text");
-                    const contribRatioText = document.getElementById("contribution-ratio-text");
-
-                    simProfitText.textContent = formatMillion(simProfit);
-                    contribRatioText.textContent = `${price > 0 ? ((unitContribution / price) * 100).toFixed(1) : 0}%`;
-
-                    if (simProfit >= 0) {
-                        simProfitBox.className = "border p-5 rounded-lg text-center bg-emerald-50 border-emerald-200";
-                        simProfitText.className = "text-3xl font-black mt-2 text-emerald-700";
-                    } else {
-                        simProfitBox.className = "border p-5 rounded-lg text-center bg-rose-50 border-rose-200";
-                        simProfitText.className = "text-3xl font-black mt-2 text-rose-700";
-                    }
-
-                    // 슬라이더 프로그레스 및 마커 이동 (최대 40만 대 기준)
-                    const pctVolume = Math.min((targetVolume / 400000) * 100, 100);
-                    const progressBar = document.getElementById("bep-progress-bar");
-                    progressBar.style.width = `${pctVolume}%`;
-                    progressBar.className = `h-full transition-all duration-500 ${targetVolume >= computedBep ? 'bg-emerald-500' : 'bg-amber-400'}`;
-
-                    const marker = document.getElementById("bep-marker");
-                    const markerLabel = document.getElementById("bep-marker-label");
-                    if (computedBep !== 99999999 && computedBep < 400000) {
-                        const pctBep = (computedBep / 400000) * 100;
-                        marker.style.left = `${pctBep}%`;
-                        marker.classList.remove("hidden");
-                        markerLabel.style.left = `calc(${pctBep}% - 20px)`;
-                        markerLabel.classList.remove("hidden");
-                    } else {
-                        marker.className = "hidden";
-                        markerLabel.className = "hidden";
-                    }
-
-                    document.getElementById("target-volume-label").textContent = `설정 판매량: ${formatRaw(targetVolume)} 대`;
-                }
-            };
-
-            // ==========================================
-            // 🖱️ 상호작용 이벤트 핸들러 어태치먼트
-            // ==========================================
-
-            // (1) 탭 네비게이션 제어
-            document.querySelectorAll(".tab-btn").forEach(btn => {
-                btn.addEventListener("click", (e) => {
-                    document.querySelectorAll(".tab-btn").forEach(b => {
-                        b.className = "tab-btn py-4 text-sm font-bold border-b-[3px] transition-colors outline-none whitespace-nowrap border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300";
-                    });
-                    e.target.className = "tab-btn py-4 text-sm font-bold border-b-[3px] transition-colors outline-none whitespace-nowrap border-blue-600 text-blue-700 tab-active";
-                    activeTab = e.target.getAttribute("data-tab");
-                    renderApp();
-                });
-            });
-
-            // (2) 종합성과탭 분기선택기 갱신 이벤트
-            document.getElementById("quarter-select").addEventListener("change", (e) => {
-                selectedQIdx = parseInt(e.target.value);
-                renderApp();
-            });
-
-            // (3) 자본비용(WACC) 변경 이벤트
-            document.getElementById("wacc-input").addEventListener("input", (e) => {
-                discountRate = parseFloat(e.target.value) || 0;
-                renderApp();
-            });
-
-            // (4) What-If 슬라이더 이벤트
-            document.getElementById("slider-price").addEventListener("input", (e) => {
-                price = parseInt(e.target.value);
-                renderApp();
-            });
-            document.getElementById("slider-vcost").addEventListener("input", (e) => {
-                variableCost = parseInt(e.target.value);
-                renderApp();
-            });
-            document.getElementById("slider-fcost").addEventListener("input", (e) => {
-                fixedCost = parseInt(e.target.value);
-                renderApp();
-            });
-            document.getElementById("slider-volume").addEventListener("input", (e) => {
-                targetVolume = parseInt(e.target.value);
-                renderApp();
-            });
-
-            // (5) 현재 분기 실제 지표 데이터 로드 원터치 바인딩 기능 활성화
-            document.getElementById("btn-apply-actual").addEventListener("click", () => {
-                const q = quarters[selectedQIdx];
-                // 매출액 / 판매량으로 정확한 실제 분기 단가 도출 (정수형 라운딩)
-                price = q.salesVolume > 0 ? Math.round(q.sales / q.salesVolume) : 700000;
-                variableCost = q.costPerUnit || 420000;
-                
-                // 광고비 + 판촉비 + 물류비 + R&D 고정비 계산
-                const parsedFixed = (q.ads || 0) + (q.promo || 0) + (q.logistics || 0) + (q.rd || 0);
-                fixedCost = parsedFixed > 0 ? parsedFixed : 30000000000;
-                targetVolume = q.salesVolume || 150000;
-
-                // 슬라이더 밸류 동기화
-                document.getElementById("slider-price").value = price;
-                document.getElementById("slider-vcost").value = variableCost;
-                document.getElementById("slider-fcost").value = fixedCost;
-                document.getElementById("slider-volume").value = targetVolume;
-
-                renderApp();
-            });
-
-            // (6) 동기화 강제 새로고침
-            document.getElementById("btn-sync").addEventListener("click", fetchGoogleSheetData);
-
-            // 초기 데이터 연동 세션 로드 실행
-            fetchGoogleSheetData();
-        });
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>
