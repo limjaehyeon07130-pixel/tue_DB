@@ -224,7 +224,7 @@
                   </div>
                   <div class="space-y-4">
                     <div class="space-y-2">
-                      <div class="flex justify-between text-xs font-bold text-slate-600"><span>단위당 제품 판매가 (P)</span><span id="val-price">700,000 원</span></div>
+                      <div class="flex justify-between text-xs font-bold text-slate-600"><span>제품 판매 단가 (P)</span><span id="val-price">700,000 원</span></div>
                       <input id="slider-price" type="range" min="300000" max="1500000" step="10000" value="700000" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"/>
                     </div>
                     <div class="space-y-2">
@@ -264,14 +264,16 @@
                     <div class="text-xs font-bold text-slate-600 flex justify-between">
                       <span>목표치 대비 BEP 임계 현황 (최대 40만 대 기준)</span>
                     </div>
-                    <div class="relative pt-2 pb-6">
+                    <div class="relative pt-4 pb-8">
+                      <!-- Track bar container -->
                       <div class="h-4 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner relative">
                         <div id="bep-progress-bar" style="width: 0%" class="h-full transition-all duration-500 bg-emerald-500"></div>
-                        <div id="bep-marker" style="left: 0%" class="absolute top-0 bottom-0 w-1.5 bg-rose-500 shadow-md"></div>
                       </div>
+                      <!-- BEP Marker (외곽 배치 및 바늘 핀 스타일) -->
+                      <div id="bep-marker" style="left: 0%;" class="absolute top-2 h-8 w-1 bg-rose-600 shadow-md z-20 rounded-full"></div>
                       <div class="absolute top-12 w-full flex justify-between text-xs font-bold text-slate-500">
                         <span>0 대</span>
-                        <span id="bep-marker-label" class="text-rose-600 absolute" style="left: 0%">BEP 분기 기준선</span>
+                        <span id="bep-marker-label" class="text-rose-600 absolute transform -translate-x-1/2 whitespace-nowrap" style="left: 0%">BEP 포인트</span>
                         <span id="target-volume-label" class="text-emerald-600 absolute right-0 text-right">설정 조업도: 0 대</span>
                       </div>
                     </div>
@@ -751,7 +753,15 @@
                     const pctVolume = Math.min((targetVolume / 400000) * 100, 100);
                     const progressBar = document.getElementById("bep-progress-bar");
                     progressBar.style.width = `${pctVolume}%`;
-                    progressBar.className = `h-full transition-all duration-500 ${targetVolume >= computedBep ? 'bg-emerald-500' : 'bg-amber-400'}`;
+                    
+                    // 슬라이더 바 색상 분기 클래스 동적 제어
+                    if (targetVolume >= computedBep) {
+                        progressBar.classList.remove("bg-amber-400");
+                        progressBar.classList.add("bg-emerald-500");
+                    } else {
+                        progressBar.classList.remove("bg-emerald-500");
+                        progressBar.classList.add("bg-amber-400");
+                    }
 
                     const marker = document.getElementById("bep-marker");
                     const markerLabel = document.getElementById("bep-marker-label");
@@ -759,11 +769,11 @@
                         const pctBep = (computedBep / 400000) * 100;
                         marker.style.left = `${pctBep}%`;
                         marker.classList.remove("hidden");
-                        markerLabel.style.left = `calc(${pctBep}% - 20px)`;
+                        markerLabel.style.left = `${pctBep}%`;
                         markerLabel.classList.remove("hidden");
                     } else {
-                        marker.className = "hidden";
-                        markerLabel.className = "hidden";
+                        marker.classList.add("hidden");
+                        markerLabel.classList.add("hidden");
                     }
 
                     document.getElementById("target-volume-label").textContent = `설정 판매량: ${formatRaw(targetVolume)} 대`;
@@ -771,7 +781,7 @@
             };
 
             // ==========================================
-            // 🖱️ 상호작용 이벤트 핸들러 연결
+            // 🖱 * 상호작용 이벤트 핸들러 연결
             // ==========================================
 
             // (1) 탭 네비게이션 제어
