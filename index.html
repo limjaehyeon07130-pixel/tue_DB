@@ -165,15 +165,15 @@
                   </div>
 
                   <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse min-w-[800px]">
+                    <table class="w-full text-left border-collapse min-w-[1000px]">
                       <thead>
                         <tr class="border-b border-slate-200">
                           <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700">검토 제안 투자안</th>
-                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">초기 투자 지출 (직접 입력 가능)</th>
-                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">1차년도 현금유입</th>
-                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">2차년도 현금유입</th>
-                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">3차년도 현금유입</th>
-                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">4차년도 현금유입</th>
+                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">초기 투자 지출 (직접 입력)</th>
+                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">1차년도 CF (입력)</th>
+                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">2차년도 CF (입력)</th>
+                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">3차년도 CF (입력)</th>
+                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">4차년도 CF (입력)</th>
                           <th class="py-3 px-4 bg-blue-50 font-bold text-blue-800 text-right border-l border-blue-100">순현재가치 (NPV)</th>
                           <th class="py-3 px-4 bg-indigo-50 font-bold text-indigo-800 text-right border-l border-indigo-100">내부수익률 (IRR)</th>
                           <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-center">의사결정 결과</th>
@@ -696,7 +696,15 @@
                               <span class="text-slate-500 font-bold text-xs">원</span>
                             </div>
                           </td>
-                          ${inv.cf.map(cash => `<td class="py-4 px-4 text-right font-mono text-slate-600 font-medium">+${formatRaw(cash)}원</td>`).join('')}
+                          ${inv.cf.map((cash, cIdx) => `
+                            <td class="py-4 px-4 text-right">
+                              <div class="flex items-center justify-end gap-1">
+                                <span class="text-emerald-600 font-bold font-mono">+</span>
+                                <input type="number" data-id="${inv.id}" data-cf-idx="${cIdx}" value="${cash}" class="proj-cf-input w-24 bg-white border border-slate-300 text-right rounded py-1 px-2 text-xs font-semibold font-mono text-emerald-700 focus:ring-2 focus:ring-blue-500" placeholder="0" />
+                                <span class="text-slate-500 font-bold text-xs">원</span>
+                              </div>
+                            </td>
+                          `).join('')}
                           <td class="py-4 px-4 text-right font-mono font-bold bg-blue-50 text-blue-700 border-l border-blue-100" id="npv-${inv.id}">${formatRaw(Math.round(npv))}원</td>
                           <td class="py-4 px-4 text-right font-mono font-bold bg-indigo-50 text-indigo-700 border-l border-indigo-100" id="irr-${inv.id}">${displayIrr}</td>
                           <td class="py-4 px-4 text-center" id="decision-${inv.id}">
@@ -833,31 +841,39 @@
             // (6) 동기화 강제 새로고침
             document.getElementById("btn-sync").addEventListener("click", fetchGoogleSheetData);
 
-            // (7) 초기 투자지출 변경 이벤트 위임 (부분 실시간 갱신 처리로 커서 강제 포커스 아웃 예방)
+            // 실시간 부분 수식 업데이트 헬퍼
+            const updateProjectRow = (projId, targetProj) => {
+                const npv = calcNPV(targetProj.initial, targetProj.cf, discountRate);
+                const irr = calcIRR(targetProj.initial, targetProj.cf);
+                const displayIrr = isNaN(irr) || !isFinite(irr) ? "N/A" : `${irr.toFixed(2)}%`;
+                
+                document.getElementById(`npv-${projId}`).textContent = `${formatRaw(Math.round(npv))}원`;
+                document.getElementById(`irr-${projId}`).textContent = displayIrr;
+                
+                const decisionEl = document.getElementById(`decision-${projId}`);
+                decisionEl.innerHTML = `
+                  <span class="px-2.5 py-1 rounded-full text-xs font-black ${npv >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">
+                    ${npv >= 0 ? '투자 적격 (Accept)' : '투자 기각 (Reject)'}
+                  </span>
+                `;
+            };
+
+            // (7) 초기 투자지출 및 각 년차 현금유입 변경 이벤트 위임 (부분 실시간 갱신 처리로 커서 강제 포커스 아웃 예방)
             document.getElementById("investments-table-body").addEventListener("input", (e) => {
+                const projId = e.target.getAttribute("data-id");
+                const targetProj = investments.find(p => p.id === projId);
+                if (!targetProj) return;
+
                 if (e.target.classList.contains("proj-initial-input")) {
-                    const projId = e.target.getAttribute("data-id");
                     const val = parseFloat(e.target.value) || 0;
-                    const targetProj = investments.find(p => p.id === projId);
-                    if (targetProj) {
-                        // 실제 차감 계산을 위해 초기 지출 값을 음수로 저장
-                        targetProj.initial = -Math.abs(val);
-                        
-                        // 전체 리렌더링 없이 해당 행의 타겟 노드(NPV, IRR, 의사결정)만 실시간 즉각 변경
-                        const npv = calcNPV(targetProj.initial, targetProj.cf, discountRate);
-                        const irr = calcIRR(targetProj.initial, targetProj.cf);
-                        const displayIrr = isNaN(irr) || !isFinite(irr) ? "N/A" : `${irr.toFixed(2)}%`;
-                        
-                        document.getElementById(`npv-${projId}`).textContent = `${formatRaw(Math.round(npv))}원`;
-                        document.getElementById(`irr-${projId}`).textContent = displayIrr;
-                        
-                        const decisionEl = document.getElementById(`decision-${projId}`);
-                        decisionEl.innerHTML = `
-                          <span class="px-2.5 py-1 rounded-full text-xs font-black ${npv >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">
-                            ${npv >= 0 ? '투자 적격 (Accept)' : '투자 기각 (Reject)'}
-                          </span>
-                        `;
-                    }
+                    // 실제 차감 계산을 위해 초기 지출 값을 음수로 저장
+                    targetProj.initial = -Math.abs(val);
+                    updateProjectRow(projId, targetProj);
+                } else if (e.target.classList.contains("proj-cf-input")) {
+                    const cfIdx = parseInt(e.target.getAttribute("data-cf-idx"));
+                    const val = parseFloat(e.target.value) || 0;
+                    targetProj.cf[cfIdx] = val;
+                    updateProjectRow(projId, targetProj);
                 }
             });
 
