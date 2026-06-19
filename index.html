@@ -153,7 +153,7 @@
                   <div class="border-b border-slate-100 pb-4 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
                       <h2 class="font-bold text-slate-800 text-lg">투자안 경제성 심의 위원회 검토안</h2>
-                      <p class="text-xs text-slate-500 mt-1">할인현금흐름(DCF) 기반 WACC 연동 실시간 재무 가치 산출</p>
+                      <p class="text-xs text-slate-500 mt-1">할인현금흐름(DCF) 기반 WACC 연동 실시간 재무 가치 산출 (분기 입력 연 자동합산)</p>
                     </div>
                     <div class="flex items-center gap-3 bg-slate-50 p-2 rounded-lg border border-slate-200">
                       <span class="text-xs text-slate-600 font-bold whitespace-nowrap">요구수익률 (WACC)</span>
@@ -165,15 +165,15 @@
                   </div>
 
                   <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse min-w-[1000px]">
+                    <table class="w-full text-left border-collapse min-w-[1250px]">
                       <thead>
                         <tr class="border-b border-slate-200">
                           <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700">검토 제안 투자안</th>
                           <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">초기 투자 지출 (직접 입력)</th>
-                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">1차년도 CF (입력)</th>
-                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">2차년도 CF (입력)</th>
-                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">3차년도 CF (입력)</th>
-                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-right">4차년도 CF (입력)</th>
+                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-center">1차년도 분기별 CF (입력)</th>
+                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-center">2차년도 분기별 CF (입력)</th>
+                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-center">3차년도 분기별 CF (입력)</th>
+                          <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-center">4차년도 분기별 CF (입력)</th>
                           <th class="py-3 px-4 bg-blue-50 font-bold text-blue-800 text-right border-l border-blue-100">순현재가치 (NPV)</th>
                           <th class="py-3 px-4 bg-indigo-50 font-bold text-indigo-800 text-right border-l border-indigo-100">내부수익률 (IRR)</th>
                           <th class="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-center">의사결정 결과</th>
@@ -224,7 +224,7 @@
                   </div>
                   <div class="space-y-4">
                     <div class="space-y-2">
-                      <div class="flex justify-between text-xs font-bold text-slate-600"><span>제품 판매 단가 (P)</span><span id="val-price">700,000 원</span></div>
+                      <div class="flex justify-between text-xs font-bold text-slate-600"><span>단위당 제품 판매가 (P)</span><span id="val-price">700,000 원</span></div>
                       <input id="slider-price" type="range" min="300000" max="1500000" step="10000" value="700000" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"/>
                     </div>
                     <div class="space-y-2">
@@ -298,9 +298,43 @@
             ];
 
             const INITIAL_INVESTMENTS = [
-              { id: "patent", title: "신공정 특허 인수", initial: -2000000000, cf: [800000000, 900000000, 1000000000, 1200000000] },
-              { id: "mna", title: "유통채널 M&A", initial: -5000000000, cf: [1500000000, 1800000000, 2200000000, 2500000000] },
-              { id: "expansion", title: "신공장 설비 증설", initial: -10000000000, cf: [2500000000, 3500000000, 4500000000, 5500000000] }
+              {
+                id: "patent",
+                title: "신공정 특허 인수",
+                initial: -2000000000,
+                // 연간 분기 구조로 쪼갬 [1Q, 2Q, 3Q, 4Q]
+                quarters: [
+                  [200000000, 200000000, 200000000, 200000000], // 1차년도 분기
+                  [225000000, 225000000, 225000000, 225000000], // 2차년도 분기
+                  [250000000, 250000000, 250000000, 250000000], // 3차년도 분기
+                  [300000000, 300000000, 300000000, 300000000]  // 4차년도 분기
+                ],
+                cf: [800000000, 900000000, 1000000000, 1200000000] // 각 년도 합계
+              },
+              {
+                id: "mna",
+                title: "유통채널 M&A",
+                initial: -5000000000,
+                quarters: [
+                  [375000000, 375000000, 375000000, 375000000],
+                  [450000000, 450000000, 450000000, 450000000],
+                  [550000000, 550000000, 550000000, 550000000],
+                  [625000000, 625000000, 625000000, 625000000]
+                ],
+                cf: [1500000000, 1800000000, 2200000000, 2500000000]
+              },
+              {
+                id: "expansion",
+                title: "신공장 설비 증설",
+                initial: -10000000000,
+                quarters: [
+                  [625000000, 625000000, 625000000, 625000000],
+                  [875000000, 875000000, 875000000, 875000000],
+                  [1125000000, 1125000000, 1125000000, 1125000000],
+                  [1375000000, 1375000000, 1375000000, 1375000000]
+                ],
+                cf: [2500000000, 3500000000, 4500000000, 5500000000]
+              }
             ];
 
             // 전역 런타임 제어 세션 값들
@@ -689,6 +723,39 @@
 
                         const tr = document.createElement("tr");
                         tr.className = "hover:bg-slate-50/50 transition-colors";
+                        
+                        // 연도별 분기 입력을 위한 격자 레이아웃 구성
+                        let quartersHTML = inv.quarters.map((qArray, yIdx) => {
+                            const yrSum = qArray.reduce((sum, val) => sum + val, 0);
+                            return `
+                              <td class="py-3 px-2 min-w-[170px]">
+                                <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 space-y-1.5">
+                                  <div class="grid grid-cols-2 gap-1">
+                                    <div class="flex items-center bg-white border border-slate-200 rounded px-1">
+                                      <span class="text-[9px] text-slate-400 mr-0.5 font-bold">1Q</span>
+                                      <input type="number" data-id="${inv.id}" data-yr-idx="${yIdx}" data-q-idx="0" value="${qArray[0]}" class="proj-q-input w-full text-right border-none p-0.5 text-[10px] font-mono font-semibold text-emerald-700 focus:ring-0 outline-none" />
+                                    </div>
+                                    <div class="flex items-center bg-white border border-slate-200 rounded px-1">
+                                      <span class="text-[9px] text-slate-400 mr-0.5 font-bold">2Q</span>
+                                      <input type="number" data-id="${inv.id}" data-yr-idx="${yIdx}" data-q-idx="1" value="${qArray[1]}" class="proj-q-input w-full text-right border-none p-0.5 text-[10px] font-mono font-semibold text-emerald-700 focus:ring-0 outline-none" />
+                                    </div>
+                                    <div class="flex items-center bg-white border border-slate-200 rounded px-1">
+                                      <span class="text-[9px] text-slate-400 mr-0.5 font-bold">3Q</span>
+                                      <input type="number" data-id="${inv.id}" data-yr-idx="${yIdx}" data-q-idx="2" value="${qArray[2]}" class="proj-q-input w-full text-right border-none p-0.5 text-[10px] font-mono font-semibold text-emerald-700 focus:ring-0 outline-none" />
+                                    </div>
+                                    <div class="flex items-center bg-white border border-slate-200 rounded px-1">
+                                      <span class="text-[9px] text-slate-400 mr-0.5 font-bold">4Q</span>
+                                      <input type="number" data-id="${inv.id}" data-yr-idx="${yIdx}" data-q-idx="3" value="${qArray[3]}" class="proj-q-input w-full text-right border-none p-0.5 text-[10px] font-mono font-semibold text-emerald-700 focus:ring-0 outline-none" />
+                                    </div>
+                                  </div>
+                                  <div class="text-[10px] text-slate-500 font-bold text-right pr-0.5">
+                                    연간 합계: <span id="sum-${inv.id}-${yIdx}" class="text-slate-800 font-mono font-bold">${formatRaw(yrSum)}</span>원
+                                  </div>
+                                </div>
+                              </td>
+                            `;
+                        }).join('');
+
                         tr.innerHTML = `
                           <td class="py-4 px-4 font-bold text-slate-800">${inv.title}</td>
                           <td class="py-4 px-4 text-right">
@@ -698,16 +765,8 @@
                               <span class="text-slate-500 font-bold text-xs">원</span>
                             </div>
                           </td>
-                          ${inv.cf.map((cash, cIdx) => `
-                            <td class="py-4 px-4 text-right">
-                              <div class="flex items-center justify-end gap-1">
-                                <span class="text-emerald-600 font-bold font-mono">+</span>
-                                <input type="number" data-id="${inv.id}" data-cf-idx="${cIdx}" value="${cash}" class="proj-cf-input w-24 bg-white border border-slate-300 text-right rounded py-1 px-2 text-xs font-semibold font-mono text-emerald-700 focus:ring-2 focus:ring-blue-500" placeholder="0" />
-                                <span class="text-slate-500 font-bold text-xs">원</span>
-                              </div>
-                            </td>
-                          `).join('')}
-                          <td class="py-4 px-4 text-right font-mono font-bold bg-blue-50 text-blue-700 border-l border-blue-100" id="npv-${inv.id}">${formatRaw(Math.round(npv))}원</td>
+                          ${quartersHTML}
+                          <td class="py-4 px-4 text-right font-mono font-bold bg-blue-50 text-blue-700 border-l border-blue-100 shadow-inner" id="npv-${inv.id}">${formatRaw(Math.round(npv))}원</td>
                           <td class="py-4 px-4 text-right font-mono font-bold bg-indigo-50 text-indigo-700 border-l border-indigo-100" id="irr-${inv.id}">${displayIrr}</td>
                           <td class="py-4 px-4 text-center" id="decision-${inv.id}">
                             <span class="px-2.5 py-1 rounded-full text-xs font-black ${npv >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">
@@ -868,7 +927,7 @@
                 `;
             };
 
-            // (7) 초기 투자지출 및 각 년차 현금유입 변경 이벤트 위임 (부분 실시간 갱신 처리로 커서 강제 포커스 아웃 예방)
+            // (7) 초기 투자지출 및 각 분기 현금유입 변경 이벤트 위임 (부분 실시간 갱신 처리로 커서 강제 포커스 아웃 예방)
             document.getElementById("investments-table-body").addEventListener("input", (e) => {
                 const projId = e.target.getAttribute("data-id");
                 const targetProj = investments.find(p => p.id === projId);
@@ -879,10 +938,22 @@
                     // 실제 차감 계산을 위해 초기 지출 값을 음수로 저장
                     targetProj.initial = -Math.abs(val);
                     updateProjectRow(projId, targetProj);
-                } else if (e.target.classList.contains("proj-cf-input")) {
-                    const cfIdx = parseInt(e.target.getAttribute("data-cf-idx"));
+                } else if (e.target.classList.contains("proj-q-input")) {
+                    const yrIdx = parseInt(e.target.getAttribute("data-yr-idx"));
+                    const qIdx = parseInt(e.target.getAttribute("data-q-idx"));
                     const val = parseFloat(e.target.value) || 0;
-                    targetProj.cf[cfIdx] = val;
+                    
+                    // 해당 년차의 해당 분기 금액 업데이트
+                    targetProj.quarters[yrIdx][qIdx] = val;
+                    
+                    // 해당 연도의 합계 계산 및 업데이트
+                    const yrSum = targetProj.quarters[yrIdx].reduce((sum, v) => sum + v, 0);
+                    targetProj.cf[yrIdx] = yrSum;
+                    
+                    // 화면상 표시되는 연간 합계 텍스트만 포커스 유실 없이 실시간 업데이트
+                    document.getElementById(`sum-${projId}-${yrIdx}`).textContent = formatRaw(yrSum);
+                    
+                    // NPV/IRR 연산 업데이트 호출
                     updateProjectRow(projId, targetProj);
                 }
             });
