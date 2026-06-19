@@ -89,7 +89,7 @@
             <!-- 탭 콘텐츠 구획 -->
             <div id="tab-summary" class="tab-content space-y-6">
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <!-- 매출 / 이익 차트 (HTML 기반 경량 고성능 차트) -->
+                    <!-- 매출 / 이익 차트 -->
                     <div class="lg:col-span-2 bg-white border border-slate-200 p-6 rounded-xl shadow-sm flex flex-col justify-between">
                         <div class="border-b border-slate-100 pb-4 mb-6 flex justify-between items-center">
                           <h2 class="font-bold text-slate-800 text-lg">경영 실적 성장 추이 (매출 및 이익)</h2>
@@ -491,7 +491,7 @@
                             </div>
                             <div class="w-full flex justify-center gap-1.5 h-full items-end">
                               <div style="height: ${sHeight}%" class="w-6 sm:w-8 bg-blue-600 rounded-t-sm shadow-sm group-hover:bg-blue-500 transition-colors"></div>
-                              <div style={{ height: `${Math.max(pHeight, 1)}%` }} class="w-6 sm:w-8 bg-amber-500 rounded-t-sm shadow-sm group-hover:bg-amber-400 transition-colors"></div>
+                              <div style="height: ${Math.max(pHeight, 1)}%" class="w-6 sm:w-8 bg-amber-500 rounded-t-sm shadow-sm group-hover:bg-amber-400 transition-colors"></div>
                             </div>
                             <span class="text-xs text-slate-600 font-semibold mt-3 whitespace-nowrap">${q.name}</span>
                         `;
