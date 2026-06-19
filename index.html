@@ -4,8 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>임재현 팀 경영 성과 대시보드</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- React & Babel Standalone (Vercel 배포 최적화) -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -17,7 +20,7 @@
         const { useState, useEffect, useMemo } = React;
 
         // ==========================================
-        // 🚀 Gemini API Key 설정 (보안 제거)
+        // 🚀 Gemini API Key 설정
         // ==========================================
         const apiKey = ""; 
 
@@ -25,7 +28,7 @@
         const formatRaw = (v) => (!v || isNaN(v)) ? "0" : Number(v).toLocaleString();
         const formatRatio = (v) => (!v || isNaN(v)) ? "0.00%" : `${Number(v).toFixed(2)}%`;
         const formatTurnover = (v) => (!v || isNaN(v)) ? "0.00회" : `${Number(v).toFixed(2)}회`;
-        
+
         const DEMO_QUARTERS = [
           { name: "3차 4Q", sales: 88631620000, operatingProfit: 5069504571, netIncome: 4119883657, totalAssets: 74315106254, totalEquity: 74315106254, currentAssets: 64315106254, quickAssets: 56723088633, inventory: 7836734071, receivables: 35452648000, currentLiabilities: 10000000, krSales: 54225, usSales: 34409, cnSales: 55000, salesVolume: 143634 },
           { name: "4차 1Q", sales: 95061638854, operatingProfit: 5020140115, netIncome: 4990640115, totalAssets: 79156027165, totalEquity: 79156027165, currentAssets: 70156027165, quickAssets: 59671196909, inventory: 10484830256, receivables: 38024655541, currentLiabilities: 10000000, krSales: 57034, usSales: 32204, cnSales: 39491, salesVolume: 128729 },
@@ -62,6 +65,7 @@
 
         function App() {
           const spreadsheetInput = "https://docs.google.com/spreadsheets/d/1WMTK2Or9K_HzgGlhKzkSDK41G8J_Q4s4ORV1LS83nsc/edit?gid=0#gid=0";
+
           const [activeTab, setActiveTab] = useState('summary');
           const [quarters, setQuarters] = useState(DEMO_QUARTERS); 
           const [selectedQIdx, setSelectedQIdx] = useState(5); 
@@ -70,21 +74,19 @@
           const [errorMsg, setErrorMsg] = useState(""); 
 
           const [price, setPrice] = useState(700000); 
-          const [variableCost, setVariableCost] = useState(420000);
+          const [variableCost, setVariableCost] = useState(420000); 
           const [fixedCost, setFixedCost] = useState(30000000000); 
           const [targetVolume, setTargetVolume] = useState(150000); 
 
           const [discountRate, setDiscountRate] = useState(3.0);
           const [investments, setInvestments] = useState(INITIAL_INVESTMENTS);
+
           const [aiSummaryReport, setAiSummaryReport] = useState("");
           const [isAiSummaryLoading, setIsAiSummaryLoading] = useState(false);
           const [aiDecisionReport, setAiDecisionReport] = useState("");
           const [isAiDecisionLoading, setIsAiDecisionLoading] = useState(false);
 
           const callGeminiAPI = async (prompt) => {
-            if (!apiKey) {
-              return "⚠️ API 키가 설정되지 않았습니다. 대시보드 상단의 'apiKey' 변수에 본인의 Gemini API Key를 등록하면 실시간 AI 보고서 분석이 활성화됩니다.";
-            }
             const model = "gemini-2.5-flash-preview-09-2025";
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
             
@@ -113,6 +115,7 @@
 
           const fetchGoogleSheetData = async () => {
             if (!spreadsheetInput) return;
+            
             const extractId = (input) => {
               const match = input.match(/\/d\/([a-zA-Z0-9-_]+)/);
               return match ? match[1] : input;
@@ -134,7 +137,8 @@
 
               const parsedQuarters = [];
               let headerIdx = rows.findIndex(r => r.some(c => String(c).includes("분기") || String(c).includes("Q")));
-              if (headerIdx === -1) headerIdx = 0;
+              if (headerIdx === -1) headerIdx = 0; 
+
               const headerNames = rows[headerIdx].map(h => String(h).trim());
 
               headerNames.forEach((name, colIdx) => {
@@ -153,6 +157,7 @@
 
                   if (val !== 0) hasValidData = true;
 
+                  // 🚀 ROE 오작동 방지 핵심 코드: "이익률", "ROE", "비율", "회전율", "증가율" 키워드가 포함된 행을 철저히 배제하여 원천 데이터 오염 차단
                   if (key.includes("매출액") && !key.includes("증가율")) qData.sales = val;
                   else if (key.includes("영업이익") && !key.includes("증가율") && !key.includes("이익률")) qData.operatingProfit = val;
                   else if (key.includes("당기순이익") && !key.includes("이익률")) qData.netIncome = val;
@@ -238,16 +243,18 @@
             return guess * 100;
           };
 
-          // Vercel 호환성을 위해 변수 호이스팅 스코프 에러 완벽 해결
-          const unitMargin = price - variableCost;
-          const bepVolume = unitMargin <= 0 ? 99999999 : Math.ceil(fixedCost / unitMargin);
-          const simulatedProfit = unitMargin * targetVolume - fixedCost;
+          const bepVolume = useMemo(() => {
+            const unitMargin = price - variableCost;
+            if (unitMargin <= 0) return Infinity;
+            return Math.ceil(fixedCost / unitMargin);
+          }, [price, variableCost, fixedCost]);
+
+          const simulatedProfit = (price - variableCost) * targetVolume - fixedCost;
 
           const handleGenerateSummaryAI = async () => {
             setIsAiSummaryLoading(true);
             setAiSummaryReport("");
-            const prompt = `임재현 팀의 ${activeQ.name} 실적: 매출 ${formatMillion(activeQ.sales)}(성장 ${activeQ.salesGrowth.toFixed(1)}%), 영업이익 ${formatMillion(activeQ.operatingProfit)}(성장 ${activeQ.opGrowth.toFixed(1)}%), ROE ${activeQ.roe.toFixed(2)}%, 유동비율 ${activeQ.currentRatio.toFixed(2)}%.
-경영진 브리핑을 마크다운으로 3항목 작성: 1. 재무 요약(2줄) 2. 강점(Bullet) 3. 리스크 및 제언(Bullet)`;
+            const prompt = `임재현 팀의 ${activeQ.name} 실적: 매출 ${formatMillion(activeQ.sales)}(성장 ${activeQ.salesGrowth.toFixed(1)}%), 영업이익 ${formatMillion(activeQ.operatingProfit)}(성장 ${activeQ.opGrowth.toFixed(1)}%), ROE ${activeQ.roe.toFixed(2)}%, 유동비율 ${activeQ.currentRatio.toFixed(2)}%. 경영진 브리핑을 마크다운으로 3항목 작성: 1. 재무 요약(2줄) 2. 강점(Bullet) 3. 리스크 및 제언(Bullet)`;
             const result = await callGeminiAPI(prompt);
             setAiSummaryReport(result);
             setIsAiSummaryLoading(false);
@@ -316,7 +323,7 @@
                       <span className="text-xs text-slate-400 font-medium">vs 전기 대비</span>
                     </div>
                   </div>
-
+                  
                   <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
                     <div className="text-sm font-semibold text-slate-500">영업이익 ({activeQ.name})</div>
@@ -375,7 +382,7 @@
                             {[...Array(5)].map((_, i) => (<div key={i} className="w-full border-t border-slate-100 border-dashed"></div>))}
                           </div>
                           {processedRatios.map((q, idx) => {
-                            const maxVal = Math.max(...quarters.map(item => item.sales), 1);
+                            const maxVal = Math.max(...quarters.map(item => item.sales), 1); 
                             const sHeight = (q.sales / maxVal) * 90;
                             const pHeight = (q.operatingProfit / maxVal) * 90;
                             return (
@@ -441,6 +448,7 @@
                       <div><h2 className="text-xl font-bold text-slate-900">핵심 재무상태표 및 손익계산 요약</h2></div>
                       <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-md">단위: 원 (KRW) / 비율 (%)</span>
                     </div>
+
                     <div className="overflow-x-auto pb-4">
                       <table className="w-full text-left border-collapse min-w-[800px]">
                         <thead>
@@ -461,18 +469,18 @@
                               {processedRatios.map((q, qIdx) => (<td key={qIdx} className="py-3.5 px-4 text-right font-mono text-slate-600 font-medium">{formatRaw(q[row.key])}</td>))}
                             </tr>
                           ))}
+
                           <tr className="bg-slate-50/50"><td colSpan={quarters.length + 1} className="py-3 px-4 font-extrabold text-blue-800 text-xs sticky left-0 z-10 border-t-2 border-slate-200 mt-4">2. 핵심 재무 비율 분석 (수식 연동)</td></tr>
                           {[
-                            { label: "유동비율", key: "currentRatio", format: formatRatio },
-                            { label: "당좌비율", key: "quickRatio", format: formatRatio },
-                            { label: "재고자산 회전율", key: "inventoryTurnover", format: formatTurnover },
-                            { label: "매출채권 회전율", key: "receivablesTurnover", format: formatTurnover },
-                            { label: "총자산이익률 (ROA)", key: "roa", format: formatRatio },
-                            { label: "자기자본이익률 (ROE)", key: "roe", format: formatRatio }
+                            { label: "유동비율", key: "currentRatio", format: formatRatio, desc: "유동자산 / 유동부채" }, { label: "당좌비율", key: "quickRatio", format: formatRatio, desc: "당좌자산 / 유동부채" },
+                            { label: "재고자산 회전율", key: "inventoryTurnover", format: formatTurnover, desc: "매출액 / 재고자산" }, { label: "매출채권 회전율", key: "receivablesTurnover", format: formatTurnover, desc: "매출액 / 매출채권" },
+                            { label: "총자산이익률 (ROA)", key: "roa", format: formatRatio, desc: "순이익 / 자산총계" }, { label: "자기자본이익률 (ROE)", key: "roe", format: formatRatio, desc: "순이익 / 자본총계" }
                           ].map((row, idx) => (
-                            <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                              <td className="py-3.5 px-4 font-semibold text-slate-700 sticky left-0 bg-white shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] z-10 border-r border-slate-100">{row.label}</td>
-                              {processedRatios.map((q, qIdx) => (<td key={qIdx} className="py-3.5 px-4 text-right font-mono text-slate-600 font-medium">{row.format(q[row.key])}</td>))}
+                            <tr key={idx} className="bg-blue-50/20 hover:bg-blue-50/50 transition-colors">
+                              <td className="py-3 px-4 sticky left-0 bg-white shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] z-10 border-r border-slate-100">
+                                <div className="font-bold text-slate-800">{row.label}</div><div className="text-[11px] text-slate-500 mt-0.5">{row.desc}</div>
+                              </td>
+                              {processedRatios.map((q, qIdx) => (<td key={qIdx} className="py-3 px-4 text-right font-mono text-blue-700 font-bold">{row.format(q[row.key])}</td>))}
                             </tr>
                           ))}
                         </tbody>
@@ -483,51 +491,48 @@
 
                 {activeTab === 'decisions' && (
                   <div className="space-y-6">
-                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-6 rounded-xl shadow-sm">
+                    <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 p-6 rounded-xl shadow-sm">
                       <div className="flex justify-between items-center mb-4">
                         <div className="flex items-center gap-2">
-                          <span className="text-xl">📊</span>
-                          <h2 className="font-bold text-blue-900 text-lg">AI 자본예산 투자 심의 의견</h2>
+                          <span className="text-xl">✨</span>
+                          <h2 className="font-bold text-emerald-900 text-lg">AI 투자 리스크 및 우선순위 진단</h2>
                         </div>
-                        <button onClick={handleGenerateDecisionAI} disabled={isAiDecisionLoading} className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md transition-all flex items-center gap-2">
-                          {isAiDecisionLoading ? <i className="fa-solid fa-spinner fa-spin"></i> : "📊 AI 심의의견 생성"}
+                        <button onClick={handleGenerateDecisionAI} disabled={isAiDecisionLoading} className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md transition-all flex items-center gap-2">
+                          {isAiDecisionLoading ? <i className="fa-solid fa-spinner fa-spin"></i> : "✨ AI 진단 생성"}
                         </button>
                       </div>
                       {aiDecisionReport ? (
-                        <div className="bg-white p-5 rounded-lg border border-blue-100 text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">{aiDecisionReport}</div>
+                        <div className="bg-white p-5 rounded-lg border border-emerald-100 text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">{aiDecisionReport}</div>
                       ) : (
-                        <div className="bg-white/60 p-5 rounded-lg border border-blue-100 border-dashed text-slate-500 text-sm text-center">우측 상단의 생성 버튼을 클릭하여 투자 제안서별 정량/정성 검토 의견을 자동 생성하세요.</div>
+                        <div className="bg-white/60 p-5 rounded-lg border border-emerald-100 border-dashed text-slate-500 text-sm text-center">투자를 검토하기 전, AI 버튼을 눌러 정성적인 리스크 요인과 우선순위 평가를 확인하세요.</div>
                       )}
                     </div>
 
-                    <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm">
-                      <div className="border-b border-slate-100 pb-4 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                        <div>
-                          <h2 className="font-bold text-slate-800 text-lg">독립적 투자안의 경제성 분석 (Capital Budgeting)</h2>
-                          <p className="text-xs text-slate-500 mt-1">현금흐름 할인모형(DCF) 기반 자본비용 반영 실시간 연동</p>
-                        </div>
-                        <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-lg border border-slate-200">
-                          <span className="text-xs text-slate-600 font-bold whitespace-nowrap">요구수익률 (WACC)</span>
+                    <div className="bg-white border border-slate-200 p-8 rounded-xl shadow-sm space-y-8">
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-slate-200 pb-5 gap-4">
+                        <div><h2 className="text-xl font-bold text-slate-900">전략적 자본예산 투자 타당성 분석</h2></div>
+                        <div className="flex items-center gap-3 bg-slate-50 px-5 py-2.5 rounded-lg border border-slate-200 shadow-sm">
+                          <span className="text-sm font-bold text-slate-700">WACC (할인율):</span>
                           <div className="flex items-center gap-1">
-                            <input type="number" step="0.1" value={discountRate} onChange={(e) => setDiscountRate(parseFloat(e.target.value) || 0)} className="w-16 bg-white border border-slate-300 text-slate-800 text-center text-sm font-bold py-1 rounded-md outline-none focus:ring-2 focus:ring-blue-500"/>
-                            <span className="text-sm font-bold text-slate-500">%</span>
+                            <input type="number" step="0.1" min="0" max="20" value={discountRate} onChange={(e) => setDiscountRate(parseFloat(e.target.value) || 0)} className="bg-white border border-slate-300 text-blue-700 text-center font-black py-1 px-2 w-20 text-sm rounded focus:ring-2 focus:ring-blue-500 outline-none" />
+                            <span className="text-sm font-bold text-slate-600">%</span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse min-w-[800px]">
+                      <div className="overflow-x-auto pb-4">
+                        <table className="w-full text-left border-collapse min-w-[900px]">
                           <thead>
-                            <tr className="border-b border-slate-200">
-                              <th className="py-3 px-4 bg-slate-50/70 font-bold text-slate-700">투자 프로젝트명</th>
-                              <th className="py-3 px-4 bg-slate-50/70 font-bold text-slate-700 text-right">초기 투자 지출액</th>
-                              <th className="py-3 px-4 bg-slate-50/70 font-bold text-slate-700 text-right">1차년도 CF</th>
-                              <th className="py-3 px-4 bg-slate-50/70 font-bold text-slate-700 text-right">2차년도 CF</th>
-                              <th className="py-3 px-4 bg-slate-50/70 font-bold text-slate-700 text-right">3차년도 CF</th>
-                              <th className="py-3 px-4 bg-slate-50/70 font-bold text-slate-700 text-right">4차년도 CF</th>
-                              <th className="py-3 px-4 bg-blue-50 font-bold text-blue-800 text-right border-l border-blue-100">순현재가치 (NPV)</th>
-                              <th className="py-3 px-4 bg-indigo-50 font-bold text-indigo-800 text-right border-l border-indigo-100">내부수익률 (IRR)</th>
-                              <th className="py-3 px-4 bg-slate-50 font-bold text-slate-700 text-center">타당성 결정</th>
+                            <tr>
+                              <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 border-b-2 border-slate-300">투자안 프로젝트</th>
+                              <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300">초기 투자 (0기)</th>
+                              <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300">1기 현금흐름</th>
+                              <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300">2기 현금흐름</th>
+                              <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300">3기 현금흐름</th>
+                              <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-right border-b-2 border-slate-300">4기 현금흐름</th>
+                              <th className="py-4 px-4 bg-blue-50 font-extrabold text-blue-800 text-right border-b-2 border-blue-200">NPV</th>
+                              <th className="py-4 px-4 bg-indigo-50 font-extrabold text-indigo-800 text-right border-b-2 border-indigo-200">IRR</th>
+                              <th className="py-4 px-4 bg-slate-50 font-bold text-slate-700 text-center border-b-2 border-slate-300">최종 판정</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
@@ -535,17 +540,13 @@
                               const npv = calcNPV(inv.initial, inv.cf, discountRate);
                               const irr = calcIRR(inv.initial, inv.cf);
                               return (
-                                <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
+                                <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
                                   <td className="py-4 px-4 font-bold text-slate-800">{inv.title}</td>
-                                  <td className="py-4 px-4 text-right font-mono text-rose-600 font-semibold">{formatRaw(inv.initial)}원</td>
-                                  {inv.cf.map((cash, cIdx) => (<td key={cIdx} className="py-4 px-4 text-right font-mono text-slate-600 font-medium">+{formatRaw(cash)}원</td>))}
-                                  <td className="py-4 px-4 text-right font-mono font-bold bg-blue-50/40 border-l border-blue-100 text-blue-700">{formatRaw(Math.round(npv))}원</td>
-                                  <td className="py-4 px-4 text-right font-mono font-bold bg-indigo-50/40 border-l border-indigo-100 text-indigo-700">{irr.toFixed(2)}%</td>
-                                  <td className="py-4 px-4 text-center">
-                                    <span className={`px-2.5 py-1 rounded-full text-xs font-black ${npv >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                                      {npv >= 0 ? '투자 채택 (Go)' : '투자 기각 (Reject)'}
-                                    </span>
-                                  </td>
+                                  <td className="py-4 px-4 text-right"><input type="text" value={inv.initial.toLocaleString()} onChange={(e) => { const v = parseFloat(e.target.value.replace(/,/g, '')) || 0; const updated = [...investments]; updated[idx].initial = v > 0 ? -v : v; setInvestments(updated); }} className="bg-white text-right border border-slate-300 py-1.5 px-2 text-sm font-mono text-rose-600 font-bold w-28 rounded focus:ring-2 focus:ring-rose-500 outline-none shadow-inner" /></td>
+                                  {inv.cf.map((val, cfIdx) => (<td key={cfIdx} className="py-4 px-4 text-right"><input type="text" value={val.toLocaleString()} onChange={(e) => { const v = parseFloat(e.target.value.replace(/,/g, '')) || 0; const updated = [...investments]; updated[idx].cf[cfIdx] = v; setInvestments(updated); }} className="bg-white text-right border border-slate-300 py-1.5 px-2 text-sm font-mono text-slate-700 font-semibold w-24 rounded focus:ring-2 focus:ring-blue-500 outline-none shadow-inner" /></td>))}
+                                  <td className={`py-4 px-4 text-right font-mono font-black ${npv >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>{formatRaw(Math.round(npv))} 원</td>
+                                  <td className="py-4 px-4 text-right font-mono font-black text-indigo-600">{(irr || 0).toFixed(2)}%</td>
+                                  <td className="py-4 px-4 text-center"><span className={`px-3 py-1.5 rounded-md text-xs font-extrabold shadow-sm ${npv >= 0 ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-rose-100 text-rose-700 border border-rose-200'}`}>{npv >= 0 ? '투자 승인 (GO)' : '기각 (NO-GO)'}</span></td>
                                 </tr>
                               );
                             })}
@@ -557,54 +558,55 @@
                 )}
 
                 {activeTab === 'whatif' && (
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm space-y-6">
-                      <div className="border-b border-slate-100 pb-3"><h2 className="font-bold text-slate-800 text-lg">시뮬레이션 변수 입력 필드</h2></div>
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-xs font-bold text-slate-600"><span>제품 판매 단가 (Unit Price)</span><span>{formatRaw(price)} 원</span></div>
-                          <input type="range" min="450000" max="1000000" step="10000" value={price} onChange={(e) => setPrice(Number(e.target.value))} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"/>
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="bg-white border border-slate-200 p-8 rounded-xl shadow-sm space-y-8">
+                      <div className="border-b border-slate-100 pb-4"><h2 className="font-bold text-slate-800 text-lg">가격 및 원가 변동 매개변수</h2></div>
+                      <div className="space-y-6">
+                        <div>
+                          <div className="flex justify-between text-sm mb-2 font-bold"><span className="text-slate-600">목표 판매가 (Price)</span><span className="text-blue-600">{price.toLocaleString()} 원</span></div>
+                          <input type="range" min="400000" max="1000000" step="10000" value={price} onChange={(e) => setPrice(Number(e.target.value))} className="w-full accent-blue-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer outline-none" />
                         </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-xs font-bold text-slate-600"><span>단위당 변동비 (Variable Cost)</span><span>{formatRaw(variableCost)} 원</span></div>
-                          <input type="range" min="300000" max="600000" step="10000" value={variableCost} onChange={(e) => setVariableCost(Number(e.target.value))} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-amber-500"/>
+                        <div>
+                          <div className="flex justify-between text-sm mb-2 font-bold"><span className="text-slate-600">단위당 변동비 (VC)</span><span className="text-rose-500">{variableCost.toLocaleString()} 원</span></div>
+                          <input type="range" min="250000" max="600000" step="5000" value={variableCost} onChange={(e) => setVariableCost(Number(e.target.value))} className="w-full accent-rose-500 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer outline-none" />
                         </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-xs font-bold text-slate-600"><span>총 고정비 (Fixed Cost / 분기)</span><span>{formatMillion(fixedCost)}</span></div>
-                          <input type="range" min="15000000000" max="45000000000" step="500000000" value={fixedCost} onChange={(e) => setFixedCost(Number(e.target.value))} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-500"/>
+                        <div>
+                          <div className="flex justify-between text-sm mb-2 font-bold"><span className="text-slate-600">분기 총 고정비 (FC)</span><span className="text-amber-500">{(fixedCost / 100000000).toFixed(1)} 억 원</span></div>
+                          <input type="range" min="10000000000" max="50000000000" step="500000000" value={fixedCost} onChange={(e) => setFixedCost(Number(e.target.value))} className="w-full accent-amber-500 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer outline-none" />
                         </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-xs font-bold text-slate-600"><span>목표 판매량 (Target Volume)</span><span>{formatRaw(targetVolume)} 대</span></div>
-                          <input type="range" min="50000" max="250000" step="5000" value={targetVolume} onChange={(e) => setTargetVolume(Number(e.target.value))} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-500"/>
+                        <div>
+                          <div className="flex justify-between text-sm mb-2 font-bold"><span className="text-slate-600">예상 판매 수량 (Q)</span><span className="text-emerald-600">{targetVolume.toLocaleString()} 대</span></div>
+                          <input type="range" min="50000" max="250000" step="5000" value={targetVolume} onChange={(e) => setTargetVolume(Number(e.target.value))} className="w-full accent-emerald-500 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer outline-none" />
                         </div>
                       </div>
                     </div>
 
-                    <div className="lg:col-span-2 bg-white border border-slate-200 p-6 rounded-xl shadow-sm flex flex-col justify-between">
-                      <div className="border-b border-slate-100 pb-3"><h2 className="font-bold text-slate-800 text-lg">손익분기점(BEP) 산출 및 추정 이익 리포트</h2></div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 my-4">
-                        <div className="bg-slate-50 border border-slate-200 p-5 rounded-lg text-center">
-                          <div className="text-xs text-slate-500 font-bold">계산된 손익분기점 (BEP 판매량)</div>
-                          <div className="text-3xl font-black text-slate-900 mt-2">{bepVolume === 99999999 ? '계산 불가능' : `${formatRaw(bepVolume)} 대`}</div>
-                          <p className="text-xs text-slate-400 font-medium mt-1">단위당 공헌이익: {formatRaw(price - variableCost)}원</p>
+                    <div className="lg:col-span-2 bg-white border border-slate-200 p-8 rounded-xl shadow-sm flex flex-col justify-between">
+                      <div><h2 className="font-bold text-slate-800 text-lg border-b border-slate-100 pb-4">손익분기점 (BEP) 시뮬레이션 결과</h2></div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 my-8">
+                        <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 shadow-sm text-center">
+                          <div className="text-sm font-bold text-slate-500 mb-2">필수 손익분기 수량</div><div className="text-2xl font-black text-blue-600 font-mono">{bepVolume === Infinity ? "오류" : `${bepVolume.toLocaleString()} 대`}</div>
                         </div>
-                        <div className={`border p-5 rounded-lg text-center ${simulatedProfit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
-                          <div className="text-xs text-slate-500 font-bold">목표 수량 도달 시 예상 영업손익</div>
-                          <div className={`text-3xl font-black mt-2 ${simulatedProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{formatMillion(simulatedProfit)}</div>
-                          <p className="text-xs text-slate-400 font-medium mt-1">공헌이익률: {price > 0 ? ((price - variableCost) / price * 100).toFixed(1) : 0}%</p>
+                        <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 shadow-sm text-center">
+                          <div className="text-sm font-bold text-slate-500 mb-2">BEP 달성 기준 매출</div><div className="text-2xl font-black text-blue-600 font-mono">{bepVolume === Infinity ? "오류" : formatMillion(bepVolume * price)}</div>
+                        </div>
+                        <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 shadow-sm text-center">
+                          <div className="text-sm font-bold text-slate-500 mb-2">시나리오 예상 영업이익</div><div className={`text-2xl font-black font-mono ${simulatedProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{formatMillion(simulatedProfit)}</div>
                         </div>
                       </div>
-
-                      <div className="space-y-2 mt-4">
-                        <div className="text-xs font-bold text-slate-600 flex justify-between"><span>목표치 달성 스케일바 비주얼 (최대 25만대 기준)</span><span className="font-mono text-slate-400">BEP 기준선 오버레이</span></div>
+                      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <div className="flex justify-between items-center mb-4">
+                          <span className="font-bold text-slate-700 text-sm">안전 마진(Margin of Safety) 분석</span>
+                          <span className={`px-3 py-1 rounded-md text-xs font-extrabold shadow-sm ${targetVolume >= bepVolume ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{targetVolume >= bepVolume ? "수익 달성 (이익 구간)" : "손실 위험 (적자 구간)"}</span>
+                        </div>
                         <div className="relative pt-2 pb-6">
                           <div className="h-4 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner relative">
                             <div style={{ width: `${Math.min((targetVolume / 250000) * 100, 100)}%` }} className={`h-full transition-all duration-500 ${targetVolume >= bepVolume ? 'bg-emerald-500' : 'bg-amber-400'}`}></div>
-                            {bepVolume !== 99999999 && bepVolume < 250000 && (<div style={{ left: `${(bepVolume / 250000) * 100}%` }} className="absolute top-0 bottom-0 w-1.5 bg-rose-500 shadow-md"></div>)}
+                            {bepVolume !== Infinity && bepVolume < 250000 && (<div style={{ left: `${(bepVolume / 250000) * 100}%` }} className="absolute top-0 bottom-0 w-1.5 bg-rose-500 shadow-md"></div>)}
                           </div>
                           <div className="absolute top-12 w-full flex justify-between text-xs font-bold text-slate-500">
                             <span>0 대</span>
-                            {bepVolume !== 99999999 && bepVolume < 250000 && (<span className="text-rose-600 absolute" style={{ left: `calc(${(bepVolume / 250000) * 100}% - 20px)` }}>BEP 선</span>)}
+                            {bepVolume !== Infinity && bepVolume < 250000 && (<span className="text-rose-600 absolute" style={{ left: `calc(${(bepVolume / 250000) * 100}% - 20px)` }}>BEP 선</span>)}
                             <span className="text-emerald-600 absolute right-0 text-right">목표치: {targetVolume.toLocaleString()} 대</span>
                           </div>
                         </div>
@@ -617,8 +619,7 @@
           );
         }
 
-        const container = document.getElementById('root');
-        const root = ReactDOM.createRoot(container);
+        const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
 </body>
